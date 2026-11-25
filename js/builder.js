@@ -7,7 +7,7 @@
   const clone = o => JSON.parse(JSON.stringify(o));
   await B.ready;
 
-  const DEFAULT_PROMPTS = ["The printer jamming at 4:59 on a Friday", "Accidentally hitting Reply All", "Someone microwaving fish in the staff kitchen",
+  const DEFAULT_PROMPTS = window.LMK_PROMPT_PACK ? window.LMK_PROMPT_PACK.slice() : ["The printer jamming at 4:59 on a Friday", "Accidentally hitting Reply All", "Someone microwaving fish in the staff kitchen",
     "Pretending to look busy when the boss walks past", "The last biscuit in the tin", "A meeting that should have been an email", "You're on mute",
     "The delivery van stuck down a country lane", "Hiding from a customer's phone call", "Monday morning before the first coffee", "The office plant nobody waters",
     "IT asking 'have you tried turning it off and on again?'", "The forklift doing a 12-point turn", "Stocktake on Christmas Eve",
@@ -247,7 +247,13 @@
       ${hasDraw ? `<p>${drawAt.length === 1 ? "Your drawing round is" : `You have <b>${drawAt.length} drawing rounds</b>, at`} ${drawAt.map((i, k) => `<a href="#" data-go="q" data-i="${i}">position ${i + 1}</a>`).join(", ")} in the running order. Each round's drawings come back as questions before the next round starts.</p>
         <button class="btn sm" data-act="adddraw">+ Add another drawing round</button>`
         : `<p class="probs">There's no drawing round in the quiz. <button class="btn sm" data-act="adddraw">Add a drawing round</button></p>`}
-      <label>Secret prompts — one per line <span class="hint">${prompts.filter(s => s.trim()).length} prompts · aim for ${Math.max(1, drawAt.length) * 20} (about 20 per drawing round, so nobody gets a repeat)</span>
+      ${(() => { const live = prompts.filter(s => s.trim()), withLike = live.filter(s => NN.parsePrompt(s).like.length >= 3).length;
+        return `<div class="drawinfo"><b>Make the guessing hard:</b> after each prompt, add three look-alikes separated by <b>|</b>. They're near-misses of the same scene, used as the wrong answers on "What on earth is this?". Players only ever see the first part.<br>
+          <i>e.g.</i> <code>The printer jamming at 4:59 on a Friday | The photocopier eating the contract | The printer out of toner on payroll day | Fixing the printer with a hammer</code><br>
+          ${withLike}/${live.length} of yours have look-alikes. Prompts without them get the closest-sounding other prompts instead.
+          ${window.LMK_PROMPT_PACK ? `<div class="row packrow"><button class="btn sm primary" data-act="pack" data-mode="replace">Use the LMK prompt pack (${window.LMK_PROMPT_PACK.length}, all with look-alikes)</button>
+            <button class="btn sm" data-act="pack" data-mode="add">Add the pack's prompts I don't have</button></div>` : ""}</div>`; })()}
+      <label>Secret prompts — one per line <span class="hint">${prompts.filter(s => s.trim()).length} prompts · aim for ${Math.max(1, drawAt.filter(i => !Q()[i].portrait).length) * 20} (about 20 per drawing round, so nobody gets a repeat)</span>
         <textarea class="inp prompts" data-f="s.drawPrompts" data-t="lines" rows="12">${esc(prompts.join("\n"))}</textarea></label>
       <div class="grid2">
         <label>Guessing style<select class="inp" data-f="d.mode">
@@ -405,6 +411,17 @@
     if (act === "adddraw") {
       const at = Q().length ? Math.max(1, Math.round(Q().length * (Q().some(x => x.type === "draw") ? 2 / 3 : 1 / 3))) : 0;
       Q().splice(at, 0, { round: "Drawing round", type: "draw", text: "Drawing round", duration: 90 }); save(); return go("q", at);
+    }
+    if (act === "pack") {
+      const pack = window.LMK_PROMPT_PACK || [];
+      if (b.dataset.mode === "replace") {
+        if (!confirm(`Replace your ${quiz.drawPrompts.filter(x => x.trim()).length} prompts with the ${pack.length} in the LMK pack?`)) return;
+        quiz.drawPrompts = pack.slice();
+      } else {
+        const have = new Set(quiz.drawPrompts.map(x => NN.parsePrompt(x).p.toLowerCase()));
+        quiz.drawPrompts = [...quiz.drawPrompts.filter(x => x.trim()), ...pack.filter(x => !have.has(NN.parsePrompt(x).p.toLowerCase()))];
+      }
+      save(); render(); return;
     }
     if (act === "export") { download("lmk26-questions.js", jsFile(), "text/javascript"); note = "Downloaded lmk26-questions.js"; render(); return; }
     if (act === "upload") {

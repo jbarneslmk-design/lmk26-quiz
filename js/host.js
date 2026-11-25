@@ -116,10 +116,25 @@
 
   // ---------- drawing rounds (each has its own prompts, drawings and questions) ----------
   const DCFG = () => QUIZ.drawing || {};
+  // prompts are "Prompt | look-alike | …": players only ever see the first part
+  const parsedPrompts = () => (QUIZ.drawPrompts || []).map(NN.parsePrompt).filter(x => x.p);
+  const mainPrompts = () => parsedPrompts().map(x => x.p);
+  // wrong answers for "What on earth is this?": the prompt's own look-alikes first, then the
+  // closest-sounding other prompts, so the real one doesn't stand out
+  function lookalikes(prompt, inPlay) {
+    const own = (parsedPrompts().find(x => x.p === prompt) || { like: [] }).like;
+    const picked = shuffle(own).slice(0, 3);
+    if (picked.length < 3) {
+      const pool = [...new Set([...inPlay, ...parsedPrompts().flatMap(x => [x.p, ...x.like])])].filter(x => x !== prompt && !picked.includes(x));
+      const ranked = shuffle(pool).map(x => ({ x, s: NN.alike(prompt, x) })).sort((a, b) => b.s - a.s);
+      for (const { x } of ranked) { if (picked.length >= 3) break; picked.push(x); }
+    }
+    return picked;
+  }
   const usedPrompts = () => new Set(Object.values(ASG).flatMap(x => Object.values(x || {})).filter(x => x !== NN.PORTRAIT_PROMPT));
   async function startDraw(i) {
     const q = Q()[i], r = roundOf(q);
-    const used = usedPrompts(), all = QUIZ.drawPrompts && QUIZ.drawPrompts.length ? QUIZ.drawPrompts : ["A very important meeting"];
+    const used = usedPrompts(), all = mainPrompts().length ? mainPrompts() : ["A very important meeting"];
     const fresh = shuffle(all.filter(x => !used.has(x))), pool = fresh.length >= players().length ? fresh : [...fresh, ...shuffle(all.filter(x => used.has(x)))];
     const asg = {};
     players().forEach((p, k) => (asg[p.id] = q.portrait ? NN.PORTRAIT_PROMPT : pool[k % pool.length]));
@@ -134,17 +149,17 @@
     const r = roundOf(Q()[S.q]); if (r < 0) return;
     const mine = ASG[r] || {}, missing = players().filter(p => !mine[p.id]);
     if (!missing.length) return;
-    const used = usedPrompts(), pool = shuffle((QUIZ.drawPrompts || []).filter(x => !used.has(x)));
+    const used = usedPrompts(), pool = shuffle(mainPrompts().filter(x => !used.has(x)));
     const upd = {};
     const portrait = markers()[r] && markers()[r].portrait;
-    missing.forEach((p, k) => (upd[p.id] = portrait ? NN.PORTRAIT_PROMPT : pool[k] || pick(QUIZ.drawPrompts)));
+    missing.forEach((p, k) => (upd[p.id] = portrait ? NN.PORTRAIT_PROMPT : pool[k] || pick(mainPrompts())));
     await B.update("drawAssign/" + r, upd);
   }
   async function buildDrawQs(r) {
     const d = (await B.get("drawings/" + r)) || {}, asg = (await B.get("drawAssign/" + r)) || {};
     const arts = shuffle(Object.entries(d).filter(([, x]) => x && x.img));
     const cfg = DCFG(), mode = cfg.mode || "both";
-    const allPrompts = [...new Set([...Object.values(asg), ...(QUIZ.drawPrompts || [])])];
+    const inPlay = Object.values(asg).filter(x => x !== NN.PORTRAIT_PROMPT);
     const names = players().map(p => p.name);
     const max = cfg.maxQuestions ?? 10;
     const label = markers().length > 1 ? `Drawing round ${r + 1}` : "Drawing round";
@@ -152,7 +167,7 @@
       const prompt = x.prompt || asg[pid] || "?", name = nameOf(pid);
       let m = mode === "both" ? (k % 2 ? "who" : "what") : mode;
       if (m === "who" && names.length < 3) m = "what";
-      const decoys = m === "what" ? shuffle(allPrompts.filter(p => p !== prompt)).slice(0, 3) : shuffle(names.filter(n => n !== name)).slice(0, 3);
+      const decoys = m === "what" ? lookalikes(prompt, inPlay) : shuffle(names.filter(n => n !== name)).slice(0, 3);
       const options = shuffle([m === "what" ? prompt : name, ...decoys]);
       return {
         type: "choice", drawMode: m, drawingOf: pid, drawRound: r, artist: pid, round: label,

@@ -1,7 +1,11 @@
 // Small quiz for local testing only (dev/serve_test_site.sh copies it in as js/questions.js).
 window.QUIZ = { title: "LMK 26", subtitle: "Local test", defaultDuration: 20,
   drawing: { mode: "both", placement: "after", guessDuration: 15, maxQuestions: 2 },
-  drawPrompts: ["The printer jamming at 4:59 on a Friday", "Reply all disaster", "The last biscuit in the tin", "Monday morning before coffee", "Lunch stolen from the fridge", "The kettle queue"],
+  drawPrompts: ["The printer jamming at 4:59 on a Friday | The photocopier eating the contract | The printer out of toner on payroll day | Fixing the printer with a hammer",
+    "Lunch stolen from the fridge | A passive-aggressive note on the fridge | Someone eating your yoghurt | Labelling every item in the fridge",
+    "The kettle queue at 10am | The kettle that takes forever to boil | Making a brew round for 15 people | Someone using your favourite mug",
+    "The forklift doing a 12-point turn | A forklift lifting the wrong pallet | Racing pallet trucks | A forklift covered in fairy lights",
+    "Reply all disaster", "Monday morning before coffee"],
   prizes: [{ name: "Luxury hamper", from: "Smiths Foods" }, { name: "Bottle of fizz" }, { name: "Box of chocolates" }],
   questions: [
     { round: "Round 1", type: "choice", text: "Which was our busiest month?", options: ["January", "March", "July", "November"], answer: 3, funFact: "November: 4,312 orders." },

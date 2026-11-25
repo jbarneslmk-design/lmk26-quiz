@@ -25,6 +25,7 @@ js/config.js      gameId "lmk26" + the PUBLIC quiz_web connection string (safe b
 js/backend.js     Neon client (sign-in, polling sync, writes) + LOCAL test mode (localStorage)
 js/common.js      helpers: esc, fmt, scenery/snow, stars, avatar(), confetti(), celebration(), joinUrl()
 js/qr.js          bundled QR encoder (Kazuhiko Arase, MIT), so no CDN is needed at the pub
+js/prompts.js     LMK drawing prompt pack (65), each "Prompt | look-alike | look-alike | look-alike" (builder only)
 js/host.js        the game engine: question flow, scoring, drawing rounds, final/awards
 js/player.js      phone UI, drawing canvas, all shared screens
 js/builder.js     question editor
@@ -68,6 +69,7 @@ So **changing the questions mid-game shifts indices** and mixes things up. The b
 ### Scoring (host.js, `score()` / `totals()`)
 - **Choice:** 500 points plus up to 500 for speed (time left ÷ duration), ×2 if `double`. A 1.5 s grace period after the timer.
 - **Number:** 1000 if within `tolerance` (default 2%), otherwise 800 × (1 − err ÷ `zeroAt` (0.5)), plus 200 for the closest guess.
+- **Drawing prompts** are `"Prompt | look-alike | look-alike | look-alike"`. Players only see the first part. On "What is it?", the wrong answers are that prompt's look-alikes; when there are fewer than 3, `lookalikes()` fills in the closest-sounding other prompts (shared words, `NN.alike`). This stops the real answer standing out.
 - **Drawing questions:** the artist can't answer. They get `artistBonus` (150) per correct "what is it?" and `fooledBonus` (100) per person fooled on "who drew it?".
 - **Awards:** Fastest Finger, Hot Streak (3+), Wildest Guess (over 25% off), and Christmas Pudding (last place, only with 5+ players).
 
@@ -92,7 +94,7 @@ So **changing the questions mid-game shifts indices** and mixes things up. The b
 - **Automated:** `CHROME=/path/to/chrome python3 dev/play_test.py` plays a full phones-only game with 4 players (portraits, questions, a drawing round, podium and gallery). Screenshots go to `dev/shots/`. Run it after any change to host.js or player.js.
 
 ### Rules that bit us (keep them)
-1. **Bump `?v=N`** on every `<script>`/`<link>` in all three HTML files whenever JS or CSS changes, otherwise phones keep the old cached copy for up to 10 minutes. It's `?v=8` at the moment.
+1. **Bump `?v=N`** on every `<script>`/`<link>` in all three HTML files whenever JS or CSS changes, otherwise phones keep the old cached copy for up to 10 minutes. It's `?v=9` at the moment.
 2. **Never write `onkeydown = e => cond && action()`.** Returning `false` cancels the keystroke, so the box ignores typing. Use `e => { if (cond) action(); }`.
 3. **Don't send a `Content-Type` header to Neon**, because its CORS rules reject it from browsers. Use the `Neon-Connection-String`, `Neon-Raw-Text-Output: true` and `Neon-Array-Mode: true` headers, and put the query and params in the body.
 4. **Test with real key presses and taps**, not Playwright `fill()`, which skips key events and hid rule 2.

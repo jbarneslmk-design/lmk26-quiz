@@ -132,6 +132,12 @@ window.NN = (() => {
     setTimeout(() => box.remove(), 9000);
   }
   const PORTRAIT_PROMPT = "Draw yourself — and write your name!";
+  // drawing prompts: "Prompt | look-alike | look-alike | look-alike"
+  const parsePrompt = s => { const parts = String(s || "").split("|").map(x => x.trim()).filter(Boolean); return { p: parts[0] || "", like: parts.slice(1) }; };
+  // how alike two prompts sound (shared meaningful words), for prompts written without look-alikes
+  const STOP = new Set("the a an of on in to at for your you with and is it its it's that this from by off up out who what when after before has have be one all".split(" "));
+  const words = s => new Set(String(s).toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 2 && !STOP.has(w)).map(w => w.replace(/(ing|es|s)$/, "")));
+  const alike = (a, b) => { const A = words(a); let n = 0; for (const w of words(b)) if (A.has(w)) n++; return n; };
   // the winner's big moment: portrait bouncing in front of a flashing, spinning star
   function celebration(img, name, total, prize, isMe) {
     const sparkles = Array.from({ length: 10 }, (_, i) => `<i style="--a:${i * 36}deg;--d:${(i % 5) * 0.18}s">★</i>`).join("");
@@ -145,5 +151,5 @@ window.NN = (() => {
     </div>`;
   }
 
-  return { esc, $, fmt, pick, LETTERS, ordinal, parseNum, LINES, scenery, stars, joinUrl, shortUrl, avatar, confetti, PORTRAIT_PROMPT, celebration };
+  return { esc, $, fmt, pick, LETTERS, ordinal, parseNum, LINES, scenery, stars, joinUrl, shortUrl, avatar, confetti, PORTRAIT_PROMPT, celebration, parsePrompt, alike };
 })();

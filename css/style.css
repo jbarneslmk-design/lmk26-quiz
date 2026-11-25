@@ -499,3 +499,5 @@ body.player .res .zinger { font-size: 18px; }
 .pawards .award.me { outline: 4px solid var(--gold); }
 .pgallery { grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
 .pgallery figcaption { font-size: 12px; } .pgallery figcaption b { font-size: 14px; }
+.drawinfo code { display: block; margin: 6px 0; font-size: 13px; background: #f1e6ff; padding: 6px 8px; border-radius: 6px; white-space: normal; }
+.packrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
