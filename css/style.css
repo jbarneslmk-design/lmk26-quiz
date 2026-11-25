@@ -501,3 +501,35 @@ body.player .res .zinger { font-size: 18px; }
 .pgallery figcaption { font-size: 12px; } .pgallery figcaption b { font-size: 14px; }
 .drawinfo code { display: block; margin: 6px 0; font-size: 13px; background: #f1e6ff; padding: 6px 8px; border-radius: 6px; white-space: normal; }
 .packrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+/* sound switches */
+.sndbtns { display: inline-flex; gap: 5px; flex: none; }
+.sndbtn { width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--ink); background: #fff; font-size: 14px; line-height: 1; cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink); padding: 0; display: grid; place-items: center; opacity: .55; }
+.sndbtn.on { opacity: 1; background: var(--gold); }
+.sndbtn.wake { width: auto; border-radius: 999px; padding: 0 10px; font-size: 12px; font-weight: 800; opacity: 1; background: var(--gold); color: var(--ink); animation: pulse .7s ease-in-out infinite alternate; white-space: nowrap; }
+.topbar .sndbtn { width: 36px; height: 36px; font-size: 16px; }
+@media (max-width: 400px) { .ptop .me { max-width: 34%; } }
+
+/* ---------- phones: fit on one screen ---------- */
+body.player #app { padding-bottom: 6px; }
+body.player .wait { padding-top: 3vh; }
+body.player .res { padding-top: 0; }
+body.player .res .splash { font-size: min(13vw, 8.5vh); margin: .3em 0 .15em; }
+body.player .res .plus { font-size: min(44px, 6vh); margin-top: .15em; }
+body.player .res .msg { font-size: 17px; margin: 6px auto; }
+body.player .res > .card { padding: 10px 14px; margin: 8px auto; } body.player .res > .card .big { font-size: 20px; margin: 0; }
+body.player .room { padding: 10px 12px; } .room .rbar { padding: 5px 8px; margin-bottom: 5px; } .room .rbar b { width: 24px; height: 24px; font-size: 15px; }
+.room .mini.big span { font-size: 14px; padding: 3px 9px; } .room p.small { margin: 4px 0 0; }
+body.player .res .fact { padding: 10px 12px; font-size: 15px; }
+body.player .qtext.p { font-size: min(7.4vw, 5vh, 38px); margin-bottom: 12px; }
+body.player .opt { padding: min(14px, 1.8vh) 14px; }
+body.player .drawing.sm { max-width: min(300px, 38vh); }
+.pboard .plb li { padding: min(6px, .8vh) 10px; }
+/* drawing: the canvas takes whatever height is left, so tools are always on screen */
+.draw .prompt { padding: 8px 10px; margin-bottom: 8px; } .draw .prompt b { font-size: 18px; margin-top: 3px; }
+#cv { width: 100%; margin: 0 auto; }
+.draw .tools { margin: 7px 0; gap: 6px; }
+.draw .tbar { margin: 8px 0; }
+.draw > p.small { margin: 2px auto 0; }
+body.player #snowfront { display: none; } /* phones: snow behind the content only, never over text */

@@ -64,6 +64,7 @@
     while (taken.has(n.toLowerCase())) n = `${name} ${i++}`;
     localStorage.setItem(NKEY, name);
     await B.set("players/" + pid, { name: n, joinedAt: B.TS });
+    SFX.play("join");
     wake();
   }
   let lock = null;
@@ -73,6 +74,7 @@
   async function answer(v) {
     if (MYANS || S.phase !== "question" || B.now() > S.endsAt + 500) return;
     MYANS = { v, at: B.now(), pending: true }; lastKey = ""; render();
+    SFX.play("lock");
     try { await B.set(`answers/${S.q}/${pid}`, { v, at: B.TS }); }
     catch (e) { console.warn("answer refused:", e.message); MYANS = null; lastKey = ""; render(); }
     navigator.vibrate && navigator.vibrate(30);
@@ -86,7 +88,7 @@
       <p class="url">${esc(NN.shortUrl(NN.joinUrl()))}</p><p class="muted small">Let your mate scan this. Tap to close.</p></div></div>` : "";
   const header = () => `<header class="ptop"><span class="brand">${esc((CUR && CUR.round) || "LMK 26")}</span>
     <span class="ptop-r">${me ? `${portraitOf(pid) ? av(pid, "xs") : ""}<span class="me">${esc(me.name)}${MYSC ? ` · <b>${fmt(MYSC.total)}</b>` : ""}</span>` : ""}
-    <button class="sharebtn" id="sharebtn" aria-label="Show the join QR code">📱 QR</button></span></header>`;
+    ${SFX.buttons()}<button class="sharebtn" id="sharebtn" aria-label="Show the join QR code">📱 QR</button></span></header>`;
 
   function view() {
     const ph = S.phase || "lobby";
@@ -270,6 +272,8 @@
     }
     mountCanvas();
     tick();
+    fitScreen();
+    app.querySelectorAll(".pstage img").forEach(im => { if (!im.complete) im.addEventListener("load", fitScreen, { once: true }); });
   }
 
   // ---------- drawing ----------
@@ -316,6 +320,7 @@
       paint(c.getContext("2d"), strokes);
       const img = c.toDataURL("image/jpeg", 0.7);
       await B.set(`drawings/${drawR}/${pid}`, { img, prompt: MYPROMPT, at: B.TS });
+      SFX.play("lock");
       strokes = []; saveStrokes();
     } catch (e) { console.warn(e); } finally { submitting = false; }
   }
@@ -328,6 +333,25 @@
     if (n !== lastDrawn) { lastDrawn = n; render(); }
   }
   setInterval(drawProgress, 1000);
+
+  // No scrolling: if a screen is taller than the phone, shrink it to fit (down to 66%).
+  // The join screen (keyboard) and the gallery are left to scroll; the drawing canvas
+  // sizes itself to the screen in CSS instead.
+  function fitScreen() {
+    const st = $(".pstage"); if (!st) return;
+    st.style.zoom = "";
+    const cv = st.querySelector("#cv");
+    if (cv) { // the canvas takes exactly the height that's left, so the tools stay on screen
+      cv.style.width = "";
+      const others = st.scrollHeight - cv.offsetHeight, avail = window.innerHeight - st.getBoundingClientRect().top - 8 - others;
+      cv.style.width = Math.max(180, Math.min(st.clientWidth, avail)) + "px";
+      return;
+    }
+    if (st.querySelector(".join, .pgallery")) return;
+    const avail = window.innerHeight - st.getBoundingClientRect().top - 6, h = st.scrollHeight;
+    if (h > avail + 2) st.style.zoom = Math.max(0.66, avail / h).toFixed(3);
+  }
+  window.addEventListener("resize", () => requestAnimationFrame(fitScreen));
 
   function tick() {
     const bar = $("#tbar");
@@ -369,6 +393,47 @@
 
   B.on("reveal", v => { REV = v; render(); });
   B.on("scores", v => { SCALL = v || {}; MYSC = SCALL[pid] || null; scoresRev++; render(); });
+  // ---------- sound: shared cues from the host, played at the same moment on every phone ----------
+  SFX.useClock(B.now);
+  SFX.onChange(() => { lastKey = ""; if (!(S.phase === "draw" && MYPROMPT && !(MYDRAW && MYDRAW.img))) render(); else { const h = $(".ptop"); h && (h.outerHTML = header()); } });
+  let lastFx = null, fxReady = false;
+  B.on("fx", v => {
+    if (!v || v.n === lastFx) return; lastFx = v.n;
+    if (!fxReady) return; // don't replay whatever cue was there when the page opened
+    const at = v.at, now = B.now();
+    if (v.name === "reveal") {
+      SFX.playAt("reveal", at, now);
+      // my own result, just after the drumroll (results are written before the reveal)
+      setTimeout(() => {
+        const r = MYRES, mine = r && r.artist ? "art" : !r ? "miss" : r.ok || r.bullseye ? "correct" : r.pts > 0 ? "allin" : "wrong";
+        SFX.playAt(mine, at + 650, B.now());
+      }, Math.max(0, at - now - 300));
+    } else if (v.name === "board") {
+      SFX.playAt("board", at, now);
+      setTimeout(() => { if (MYSC && MYSC.prevRank && MYSC.rank < MYSC.prevRank) SFX.playAt("up", at + 1300, B.now()); }, Math.max(0, at - now));
+    } else if (v.name === "podium") {
+      SFX.playAt("podium", at, now);
+      if (v.pid === pid) SFX.playAt("place", at + 1500, now);
+    } else if (v.name === "winner") {
+      SFX.playAt(v.pid === pid ? "winnerMe" : "winner", at, now);
+    } else SFX.playAt(v.name, at, now);
+  });
+  setTimeout(() => (fxReady = true), 2500);
+  // countdown ticks and time's up, from the server-time deadline (so every phone ticks together)
+  let ticked = {};
+  setInterval(() => {
+    const live = (S.phase === "question" || S.phase === "draw") && S.endsAt;
+    SFX.duck(!!live);
+    if (!live) return;
+    const key = S.phase + S.q;
+    for (let k = 5; k >= 0; k--) {
+      const at = S.endsAt - k * 1000, d = at - B.now();
+      if (d >= 0 && d < 400 && !ticked[key + ":" + k]) {
+        ticked[key + ":" + k] = true;
+        SFX.playAt(k === 0 ? (S.phase === "draw" ? "pencils" : "timeup") : k <= 3 ? "tickHi" : "tick", at, B.now());
+      }
+    }
+  }, 150);
   let partied = false;
   B.on("final", v => {
     F = v; render();

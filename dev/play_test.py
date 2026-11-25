@@ -11,7 +11,17 @@ from playwright.async_api import async_playwright
 BASE = os.environ.get("BASE", "http://localhost:8000/")
 SH = os.path.join(os.path.dirname(__file__), "shots"); os.makedirs(SH, exist_ok=True)
 QA = {"Which was our busiest month?": 3, "Who makes the best brew?": 1, "Longest-serving customer?": 0}
-PHONE = dict(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+# PHONE=375x667 tests a small phone (iPhone SE); default is a typical 390x844
+W, H = (int(x) for x in os.environ.get("PHONE", "390x844").split("x"))
+PHONE = dict(viewport={"width": W, "height": H}, is_mobile=True, has_touch=True)
+SCROLLS = {}
+async def check_fit(pg, who):
+    """Record any screen that needs scrolling (the join screen and the gallery are allowed to)."""
+    r = await pg.evaluate("""() => { const st = document.querySelector('.pstage');
+      if (!st || st.querySelector('.join, .pgallery')) return null;
+      const over = document.documentElement.scrollHeight - innerHeight;
+      return over > 4 ? { over, screen: (st.firstElementChild && st.firstElementChild.className) || '?', zoom: st.style.zoom || '1' } : null; }""")
+    if r: SCROLLS.setdefault(r["screen"], (who, r["over"], r["zoom"]))
 
 async def main():
     async with async_playwright() as p:
@@ -47,6 +57,7 @@ async def main():
         taken = set()
         for _ in range(150):
             await host.wait_for_timeout(450); l = await label()
+            for i, pg in enumerate(ps): await check_fit(pg, names[i])
             if "Pencils down" in l:
                 cur = await host.evaluate("Backend.get('current')"); await asyncio.sleep(1.3)
                 for i, pg in enumerate(ps): await pg.wait_for_selector("#cv", timeout=8000); await draw(pg, i, cur.get("portrait"))
@@ -75,6 +86,7 @@ async def main():
             await nxt()
         sc = await host.evaluate("Backend.get('scores')")
         print("final:", sorted((v["rank"], v["name"], v["total"]) for v in sc.values()))
+        print(f"phone {W}x{H}: screens that need scrolling:", SCROLLS or "none")
         print("page errors:", errs or "none")
         await b.close()
 asyncio.run(main())

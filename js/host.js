@@ -99,6 +99,10 @@
   const players = () => Object.entries(P).map(([id, p]) => ({ id, ...p })).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
   const nameOf = id => (P[id] && P[id].name) || (SC[id] && SC[id].name) || "Someone";
 
+  // ---------- shared sound cues: every phone plays them at `at` on the shared clock ----------
+  const LEAD = 1200;
+  const cue = (name, extra = {}) => B.set("fx", { n: Math.random().toString(36).slice(2, 10), name, at: B.now() + LEAD, ...extra }).catch(() => { });
+
   // ---------- actions ----------
   async function goQuestion(i) {
     const q = Q()[i];
@@ -111,8 +115,11 @@
       unit: q.unit || null, image: q.image || null, round: q.round || null, double: !!q.double
     });
     await B.set("state", { phase: "question", q: i, endsAt: B.now() + dur * 1000, duration: dur });
+    cue("start");
   }
-  const closeQ = () => B.update("state", { phase: "closed", closedAt: B.now() });
+  // closing early (everyone's in, or Stop pressed) gets a chime; running out of time is
+  // played by each phone itself at the deadline
+  const closeQ = () => { if (S.endsAt && B.now() < S.endsAt - 400) cue("allin"); return B.update("state", { phase: "closed", closedAt: B.now() }); };
 
   // ---------- drawing rounds (each has its own prompts, drawings and questions) ----------
   const DCFG = () => QUIZ.drawing || {};
@@ -143,6 +150,7 @@
     const dur = q.duration || 90;
     await B.set("current", { index: i, type: "draw", drawRound: r, portrait: !!q.portrait, text: q.text || "Drawing round", round: q.round || "Drawing round", total: realQs().length });
     await B.set("state", { phase: "draw", q: i, endsAt: B.now() + dur * 1000, duration: dur });
+    cue("draw");
   }
   async function assignLate() {
     if (S.phase !== "draw") return;
@@ -290,6 +298,7 @@
     await B.set("scores", totals(all));
     await B.set("reveal", { index: i, type: q.type, answer: q.answer, answerText: q.type === "choice" ? q.options[q.answer] : null, artist: q.artist || null, drawMode: q.drawMode || null, unit: q.unit || null, funFact: q.funFact || null, sum });
     await B.update("state", { phase: "reveal" });
+    cue("reveal");
     backup();
   }
 
@@ -323,6 +332,7 @@
     }
     await B.set("final", { stage: 0, podium, awards });
     await B.update("state", { phase: "final" });
+    cue("final");
     backup();
   }
 
@@ -335,7 +345,7 @@
   async function step() {
     const ph = S.phase || "lobby";
     if (ph === "lobby") return Q().length && goQuestion(0);
-    if (ph === "draw") return B.update("state", { phase: "drawdone" });
+    if (ph === "draw") { if (S.endsAt && B.now() < S.endsAt - 400) cue("pencils"); return B.update("state", { phase: "drawdone" }); }
     if (ph === "drawdone") {
       await new Promise(r => setTimeout(r, 1500)); // let last auto-submits land
       if (!Q()[S.q].portrait) await buildDrawQs(roundOf(Q()[S.q]));
@@ -343,9 +353,16 @@
     }
     if (ph === "question") return closeQ();
     if (ph === "closed") return reveal();
-    if (ph === "reveal") return B.update("state", { phase: "board" });
+    if (ph === "reveal") { await B.update("state", { phase: "board" }); return cue("board"); }
     if (ph === "board") return S.q + 1 < Q().length ? goQuestion(S.q + 1) : startFinal();
-    if (ph === "final" && F && F.stage < finalMax()) return B.update("final", { stage: F.stage + 1 });
+    if (ph === "final" && F && F.stage < finalMax()) {
+      const st = F.stage + 1, pod = F.podium || [];
+      await B.update("final", { stage: st });
+      // 1 = 3rd place, 2 = 2nd, 3 = the winner, 4 = awards, 5 = gallery
+      if (st <= 2) return cue("podium", { pid: (pod[3 - st] || {}).pid || null });
+      if (st === 3) return cue("winner", { pid: (pod[0] || {}).pid || null });
+      return cue(st === 4 ? "awards" : "gallery");
+    }
   }
 
   const finalMax = () => (allDrawings().length ? 5 : 4);
@@ -416,6 +433,7 @@
       <span id="conn" class="dot ${connected ? "" : "off"}" title="Connection"></span>
       <span class="pill">👥 ${n}</span>
       <span class="grow"></span>
+      ${SFX.buttons()}
       <button class="btn sm" data-act="export">Save results</button>
       <button class="btn sm" data-act="qr" title="Show the join QR code full screen">📱 Join QR</button>
       <button class="btn sm ghost" data-act="menu">⋯</button>
@@ -641,6 +659,30 @@
   B.on("results", v => { R = v || {}; });
   B.on("scores", v => { SC = v || {}; render(); });
   let partied = false;
+  SFX.useClock(B.now);
+  SFX.onChange(() => render());
+  let lastFx = null, fxReady = false, lastCount = null;
+  B.on("fx", v => {
+    if (!v || v.n === lastFx) return; lastFx = v.n;
+    if (!fxReady) return; // ignore the cue already there when the page opened
+    const name = v.name === "winner" ? "winner" : v.name === "podium" ? "podium" : v.name;
+    SFX.playAt(name, v.at, B.now());
+  });
+  setTimeout(() => (fxReady = true), 1500);
+  B.on("players", v => { const n = v ? Object.keys(v).length : 0; if (lastCount != null && n > lastCount && S.phase === "lobby") SFX.play("join"); lastCount = n; });
+  // countdown ticks and the time's-up sound, worked out from the server-time deadline
+  let ticked = {};
+  setInterval(() => {
+    if ((S.phase !== "question" && S.phase !== "draw") || !S.endsAt) return;
+    const key = S.phase + S.q;
+    for (let k = 5; k >= 0; k--) {
+      const at = S.endsAt - k * 1000, d = at - B.now();
+      if (d >= 0 && d < 400 && !ticked[key + ":" + k]) {
+        ticked[key + ":" + k] = true;
+        SFX.playAt(k === 0 ? (S.phase === "draw" ? "pencils" : "timeup") : k <= 3 ? "tickHi" : "tick", at, B.now());
+      }
+    }
+  }, 150);
   B.on("final", v => { F = v; render(); if (F && F.stage === 3 && !partied) { partied = true; NN.confetti(140); } if (!F || F.stage < 3) partied = false; });
   B.on("reveal", v => { REV = v; render(); });
   B.onConnection(c => { connected = c; const d = $("#conn"); d && d.classList.toggle("off", !c); });

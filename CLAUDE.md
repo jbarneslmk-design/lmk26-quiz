@@ -10,5 +10,7 @@ Rules:
 - `state.q` indexes the runtime `Q()` list (portrait marker + questions + generated drawing questions): don't change questions mid-game.
 - DB changes: edit neon/schema.sql, add neon/UPDATE_N_*.sql (changed functions + grants), rebuild SETUP_LMK_TESTING.sql. The owner runs it in Neon's SQL Editor; you can't.
 - Never commit js/questions.js (it's gitignored) or a LOCAL-mode config.js.
+- Shared sounds go through a host `fx` cue with a future server-time `at`; never play a shared sound straight from a state change (phones receive it up to 1 s apart).
+- Phone screens must fit without scrolling: run play_test with `PHONE=375x667` too; it reports any screen that scrolls.
 - After changing host.js or player.js, run `dev/play_test.py` (see HANDOVER.md → Run locally) and check it reports no page errors.
 - Commits end with the session attribution lines.
