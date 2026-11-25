@@ -115,5 +115,35 @@ window.NN = (() => {
   const joinUrl = () => { const u = new URL(".", location.href); return u.origin + u.pathname; };
   const shortUrl = u => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
-  return { esc, $, fmt, pick, LETTERS, ordinal, parseNum, LINES, scenery, stars, joinUrl, shortUrl };
+  // picture of a person: their self-portrait if they drew one, otherwise their initials
+  const avatar = (img, name, cls = "") => img
+    ? `<span class="av ${cls}"><img src="${img}" alt=""></span>`
+    : `<span class="av ${cls} none">${esc(String(name || "?").trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase())}</span>`;
+  // confetti for the big moments
+  function confetti(n = 90) {
+    const box = document.createElement("div"); box.className = "confetti"; box.setAttribute("aria-hidden", "true");
+    const cols = ["#ff4f9a", "#1fc3c8", "#ffd23f", "#4fd66b", "#a98bff", "#ff8f3a", "#fff"];
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement("i");
+      p.style.cssText = `left:${Math.random() * 100}%;background:${cols[i % cols.length]};animation-duration:${2.5 + Math.random() * 3}s;animation-delay:${Math.random() * 1.5}s;transform:rotate(${Math.random() * 360}deg);width:${6 + Math.random() * 8}px;height:${10 + Math.random() * 12}px`;
+      box.appendChild(p);
+    }
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 9000);
+  }
+  const PORTRAIT_PROMPT = "Draw yourself — and write your name!";
+  // the winner's big moment: portrait bouncing in front of a flashing, spinning star
+  function celebration(img, name, total, prize, isMe) {
+    const sparkles = Array.from({ length: 10 }, (_, i) => `<i style="--a:${i * 36}deg;--d:${(i % 5) * 0.18}s">★</i>`).join("");
+    return `<div class="celebrate ${isMe ? "me" : ""}">
+      <div class="burst-wrap"><div class="burst b2"></div><div class="burst"></div><div class="sparkles">${sparkles}</div>
+        <div class="hero">${avatar(img, name, "hero-av")}</div></div>
+      <div class="champ-title">${isMe ? "THAT'S YOU!" : "CHAMPION"}</div>
+      <div class="champ-name">${esc(name)}</div>
+      <div class="champ-pts">${fmt(total)} pts</div>
+      ${prize ? `<div class="prize">🎁 ${esc(prize.name)}${prize.from ? `<small>from ${esc(prize.from)}</small>` : ""}</div>` : ""}
+    </div>`;
+  }
+
+  return { esc, $, fmt, pick, LETTERS, ordinal, parseNum, LINES, scenery, stars, joinUrl, shortUrl, avatar, confetti, PORTRAIT_PROMPT, celebration };
 })();

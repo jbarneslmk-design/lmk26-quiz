@@ -36,6 +36,7 @@ window.Backend = (() => {
     return () => listeners.delete(f);
   }
   api.on = on;
+  api.peek = p => getAt(tree, p);   // read the local copy directly (for big data such as pictures)
 
   // ================= NEON =================
   if (useNeon) {

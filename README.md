@@ -45,6 +45,20 @@ The site is the files in this repository: no build step and no server. Pages is 
 
 **Pub checklist:** ask the Black Bull for the Wi-Fi password and put it on the table cards, because phone signal in villages can be patchy. Bring a laptop charger and an HDMI cable, and check the TV input beforehand.
 
+### No big screen needed
+Every phone shows the shared screens:
+- how many people have locked in
+- after each question: how the room answered, who got it right, the fastest finger, the closest and wildest guesses, and the real story
+- the full standings, with everyone's self-portrait
+- the podium reveal, 3rd and then 2nd
+- the **winner celebration**: their portrait bouncing in front of a flashing star, with confetti. The winner's phone says "THAT'S YOU!"
+- the awards and the gallery
+
+The host page works on a phone or a laptop.
+
+### Self-portraits
+The quiz starts with a 30-second round where everyone draws themselves and writes their name. Those drawings become their picture for the night. You can switch it off or change the seconds in the builder (Prizes & setup → Self-portraits).
+
 ## 5. Writing the questions
 
 **The easy way: the question builder.** Open `https://jbarneslmk-design.github.io/lmk26-quiz/builder.html` (or go to host page → **⋯ → ✏️ Question builder**) and log in with the host PIN.

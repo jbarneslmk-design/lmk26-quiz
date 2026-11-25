@@ -47,7 +47,21 @@
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   // Question plan = your questions, with each drawing round's guess-the-drawing questions
   // slotted in after that round (spread out, or all together), before the next drawing round.
-  const markers = () => ((QUIZ && QUIZ.questions) || []).filter(q => q.type === "draw");
+  // The running order starts with a 30-second self-portrait round (unless switched off in setup);
+  // those portraits become everyone's picture on the leaderboard, podium and awards.
+  let baseCache = null, baseFor = null;
+  function baseQs() {
+    const qs = (QUIZ && QUIZ.questions) || [];
+    if (baseFor === QUIZ && baseCache) return baseCache;
+    baseFor = QUIZ;
+    const wantPortrait = QUIZ && QUIZ.portraitRound !== false && !qs.some(q => q.type === "draw" && q.portrait);
+    baseCache = wantPortrait ? [{ type: "draw", portrait: true, round: "Self-portraits", text: "Self-portraits", duration: QUIZ.portraitSeconds || 30 }, ...qs] : qs;
+    return baseCache;
+  }
+  const markers = () => baseQs().filter(q => q.type === "draw");
+  const portraitRound = () => markers().findIndex(m => m.portrait);
+  const portraitOf = pid => { const r = portraitRound(); return r < 0 ? null : (((D[r] || {})[pid]) || {}).img || null; };
+  const av = (pid, cls) => NN.avatar(portraitOf(pid), nameOf(pid), cls);
   const roundOf = q => markers().indexOf(q);
   function placeDraws(seg, dq) {
     if (!dq || !dq.length) return seg;
@@ -58,7 +72,7 @@
     return out;
   }
   function Q() {
-    const base = (QUIZ && QUIZ.questions) || [], out = [];
+    const base = baseQs(), out = [];
     let r = -1, k = 0, seg = [];
     const flush = () => { out.push(...(r < 0 ? seg : placeDraws(seg, DQ && DQ[r]))); seg = []; };
     for (const q of base) {
@@ -102,17 +116,17 @@
 
   // ---------- drawing rounds (each has its own prompts, drawings and questions) ----------
   const DCFG = () => QUIZ.drawing || {};
-  const usedPrompts = () => new Set(Object.values(ASG).flatMap(x => Object.values(x || {})));
+  const usedPrompts = () => new Set(Object.values(ASG).flatMap(x => Object.values(x || {})).filter(x => x !== NN.PORTRAIT_PROMPT));
   async function startDraw(i) {
     const q = Q()[i], r = roundOf(q);
     const used = usedPrompts(), all = QUIZ.drawPrompts && QUIZ.drawPrompts.length ? QUIZ.drawPrompts : ["A very important meeting"];
     const fresh = shuffle(all.filter(x => !used.has(x))), pool = fresh.length >= players().length ? fresh : [...fresh, ...shuffle(all.filter(x => used.has(x)))];
     const asg = {};
-    players().forEach((p, k) => (asg[p.id] = pool[k % pool.length]));
+    players().forEach((p, k) => (asg[p.id] = q.portrait ? NN.PORTRAIT_PROMPT : pool[k % pool.length]));
     await B.remove("drawings/" + r); await B.remove("dq/" + r); if (DQ) delete DQ[r];
     await B.set("drawAssign/" + r, asg);
     const dur = q.duration || 90;
-    await B.set("current", { index: i, type: "draw", drawRound: r, text: q.text || "Drawing round", round: q.round || "Drawing round", total: realQs().length });
+    await B.set("current", { index: i, type: "draw", drawRound: r, portrait: !!q.portrait, text: q.text || "Drawing round", round: q.round || "Drawing round", total: realQs().length });
     await B.set("state", { phase: "draw", q: i, endsAt: B.now() + dur * 1000, duration: dur });
   }
   async function assignLate() {
@@ -122,7 +136,8 @@
     if (!missing.length) return;
     const used = usedPrompts(), pool = shuffle((QUIZ.drawPrompts || []).filter(x => !used.has(x)));
     const upd = {};
-    missing.forEach((p, k) => (upd[p.id] = pool[k] || pick(QUIZ.drawPrompts)));
+    const portrait = markers()[r] && markers()[r].portrait;
+    missing.forEach((p, k) => (upd[p.id] = portrait ? NN.PORTRAIT_PROMPT : pool[k] || pick(QUIZ.drawPrompts)));
     await B.update("drawAssign/" + r, upd);
   }
   async function buildDrawQs(r) {
@@ -153,7 +168,7 @@
   }
   // every drawing from every round, for the gallery
   const allDrawings = () => Object.entries(D || {}).flatMap(([r, byPid]) =>
-    Object.entries(byPid || {}).filter(([, d]) => d && d.img).map(([pid, d]) => ({ r: +r, pid, img: d.img, prompt: d.prompt || (ASG[r] || {})[pid] || "" })));
+    Object.entries(byPid || {}).filter(([, d]) => d && d.img).map(([pid, d]) => ({ r: +r, pid, img: d.img, prompt: markers()[r] && markers()[r].portrait ? "Self-portrait" : d.prompt || (ASG[r] || {})[pid] || "" })));
 
   function maybeAutoClose() {
     if (S.phase !== "question" || QUIZ.autoCloseWhenAllAnswered === false) return;
@@ -308,7 +323,7 @@
     if (ph === "draw") return B.update("state", { phase: "drawdone" });
     if (ph === "drawdone") {
       await new Promise(r => setTimeout(r, 1500)); // let last auto-submits land
-      await buildDrawQs(roundOf(Q()[S.q]));
+      if (!Q()[S.q].portrait) await buildDrawQs(roundOf(Q()[S.q]));
       return S.q + 1 < Q().length ? goQuestion(S.q + 1) : startFinal();
     }
     if (ph === "question") return closeQ();
@@ -410,9 +425,10 @@
     if (ph === "draw" || ph === "drawdone") {
       const dr = D[roundOf(Q()[S.q])] || {}, done = ps.filter(p => dr[p.id] && dr[p.id].img);
       return `<section class="qscreen drawscreen">
-        <div class="qhead"><span class="pill hot">${esc(markers().length > 1 ? `DRAWING ROUND ${roundOf(Q()[S.q]) + 1}` : "DRAWING ROUND")}</span></div>
-        <h2 class="qtext">${ph === "draw" ? "Grab your phone. Draw your secret prompt." : "PENCILS DOWN"}</h2>
-        <p class="sub">${ph === "draw" ? "No words, no letters, no numbers. Just raw artistic talent." : `${done.length} masterpieces received. Time to guess what on earth they are.`}</p>
+        ${(() => { const pq = Q()[S.q], portrait = !!pq.portrait, nFun = markers().filter(m => !m.portrait).length, k = markers().filter(m => !m.portrait).indexOf(pq);
+          return `<div class="qhead"><span class="pill hot">${portrait ? "SELF-PORTRAITS" : esc(nFun > 1 ? `DRAWING ROUND ${k + 1}` : "DRAWING ROUND")}</span></div>
+        <h2 class="qtext">${ph === "draw" ? (portrait ? "Draw yourself — and write your name!" : "Grab your phone. Draw your secret prompt.") : "PENCILS DOWN"}</h2>
+        <p class="sub">${ph === "draw" ? (portrait ? "You've got 30 seconds. This is your picture for the rest of the night, so make it count." : "No words, no letters, no numbers. Just raw artistic talent.") : portrait ? `${done.length} self-portraits in. Gorgeous, every one of you.` : `${done.length} masterpieces received. Time to guess what on earth they are.`}</p>`; })()}
         <div class="qfoot">
           ${ph === "draw" ? `<div class="timer"><span id="tleft"></span></div>` : ""}
           <div class="answered"><strong>${done.length}/${ps.length}</strong> submitted
@@ -490,7 +506,7 @@
       <h2 class="title">STANDINGS <small>after Q${S.q + 1}</small></h2>
       <ol class="lb">${rows.map(r => {
         const mv = r.prevRank ? r.prevRank - r.rank : 0;
-        return `<li><span class="rk">${r.rank}</span><span class="nm">${esc(r.name)}</span>${NN.stars(r.streak)}
+        return `<li><span class="rk">${r.rank}</span>${av(r.id, "sm")}<span class="nm">${esc(r.name)}</span>${NN.stars(r.streak)}
           <span class="mv ${mv > 0 ? "up" : mv < 0 ? "down" : ""}">${mv > 0 ? "▲" + mv : mv < 0 ? "▼" + -mv : ""}</span><span class="pts">${fmt(r.total)}</span></li>`;
       }).join("")}</ol></section>`;
   }
@@ -501,15 +517,16 @@
     const slot = (i, cls) => {
       const p = pod[i], shown = st >= 3 - i;
       return `<div class="pod ${cls} ${shown ? "show" : ""}">
-        ${shown && p ? `<div class="pname">${esc(p.name)}</div><div class="ppts">${fmt(p.total)} pts</div>
+        ${shown && p ? `${av(p.pid, i === 0 ? "xl" : "lg")}<div class="pname">${esc(p.name)}</div><div class="ppts">${fmt(p.total)} pts</div>
           ${p.prize ? `<div class="prize">🎁 ${esc(p.prize.name)}${p.prize.from ? `<small>from ${esc(p.prize.from)}</small>` : ""}</div>` : ""}` : `<div class="pname">?</div>`}
         <div class="block">${ordinal(i + 1)}</div></div>`;
     };
     return `<section class="final">
       ${st === 4 ? `<h2 class="title">SPECIAL AWARDS</h2>` : ""}
+      ${st === 3 && pod[0] ? NN.celebration(portraitOf(pod[0].pid), pod[0].name, pod[0].total, pod[0].prize, false) : ""}
       ${st < 4 ? `<h2 class="title">${st >= 3 ? "WE HAVE A WINNER" : "THE FINAL COUNTDOWN"}</h2>
       <div class="podium">${slot(1, "p2")}${slot(0, "p1")}${slot(2, "p3")}</div>` : ""}
-      ${st === 4 ? `<div class="awards">${(F.awards || []).map(a => `<div class="card award"><h3>${esc(a.title)}</h3><p class="pname">${esc(a.name)}</p><p class="small">${esc(a.detail)}</p>${a.prize ? `<p class="prize">🎁 ${esc(a.prize)}</p>` : ""}</div>`).join("")}</div>
+      ${st === 4 ? `<div class="awards">${(F.awards || []).map(a => `<div class="card award"><h3>${esc(a.title)}</h3>${av(a.pid, "md")}<p class="pname">${esc(a.name)}</p><p class="small">${esc(a.detail)}</p>${a.prize ? `<p class="prize">🎁 ${esc(a.prize)}</p>` : ""}</div>`).join("")}</div>
         ${st < 5 ? `<p class="zinger">Merry Christmas, you lot. 🎄</p>` : ""}` : ""}
       ${st >= 5 ? `<h2 class="title sm">THE GALLERY</h2>${galleryHtml()}` : ""}
     </section>`;
@@ -608,7 +625,8 @@
   B.on("dq", v => { DQ = v || {}; render(); });
   B.on("results", v => { R = v || {}; });
   B.on("scores", v => { SC = v || {}; render(); });
-  B.on("final", v => { F = v; render(); });
+  let partied = false;
+  B.on("final", v => { F = v; render(); if (F && F.stage === 3 && !partied) { partied = true; NN.confetti(140); } if (!F || F.stage < 3) partied = false; });
   B.on("reveal", v => { REV = v; render(); });
   B.onConnection(c => { connected = c; const d = $("#conn"); d && d.classList.toggle("off", !c); });
   render();

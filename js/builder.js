@@ -32,6 +32,8 @@
     q.prizes = [0, 1, 2].map(i => ({ name: (q.prizes && q.prizes[i] && q.prizes[i].name) || "", from: (q.prizes && q.prizes[i] && q.prizes[i].from) || "" }));
     q.awards = Object.assign({ fastestFinger: true, hotStreak: true, wildestGuess: true, pudding: true }, q.awards || {});
     q.drawing = Object.assign({}, TEMPLATE.drawing, q.drawing || {});
+    if (q.portraitRound == null) q.portraitRound = true;
+    if (!q.portraitSeconds) q.portraitSeconds = 30;
     q.drawPrompts = Array.isArray(q.drawPrompts) ? q.drawPrompts : DEFAULT_PROMPTS.slice();
     q.questions = (q.questions || []).map(x => {
       x = Object.assign({}, x);
@@ -152,6 +154,12 @@
         <label>Seconds per question (default)<input class="inp" data-f="s.defaultDuration" data-t="int" inputmode="numeric" value="${quiz.defaultDuration || 30}"></label>
         <label class="tick"><input type="checkbox" data-f="s.autoCloseWhenAllAnswered" data-t="bool" ${quiz.autoCloseWhenAllAnswered !== false ? "checked" : ""}> Close a question early once everyone has answered</label>
       </div>
+      <h3>Self-portraits</h3>
+      <div class="grid2">
+        <label class="tick"><input type="checkbox" data-f="s.portraitRound" data-t="bool" ${quiz.portraitRound !== false ? "checked" : ""}> Start with everyone drawing themselves + their name</label>
+        <label>Seconds to draw<input class="inp" data-f="s.portraitSeconds" data-t="int" inputmode="numeric" value="${quiz.portraitSeconds || 30}"></label>
+      </div>
+      <p class="hint">The portraits become everyone's picture on the leaderboard, podium and awards, and the winner's gets the big celebration.</p>
       <h3>Prizes</h3>
       ${quiz.prizes.map((p, i) => `<div class="grid2 prize-row"><label>${["🥇 1st", "🥈 2nd", "🥉 3rd"][i]} prize<input class="inp" data-f="s.prizes.${i}.name" value="${esc(p.name)}" placeholder="e.g. Hamper of goodies"></label>
         <label>From (customer / brand)<input class="inp" data-f="s.prizes.${i}.from" value="${esc(p.from)}" placeholder="optional"></label></div>`).join("")}
