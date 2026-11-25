@@ -47,6 +47,16 @@ The site is the files in this repository: no build step and no server. Pages is 
 
 ## 5. Writing the questions
 
+**The easy way: the question builder.** Open `https://jbarneslmk-design.github.io/lmk26-quiz/builder.html` (or go to host page → **⋯ → ✏️ Question builder**) and log in with the host PIN.
+- Pick **Edit the quiz's questions**, or open a file. Then go through it one question at a time: the type, the question, the answers (tick the right one), the real story, the seconds, and double points. A phone preview shows how each question will look.
+- After that come the prizes, the fun awards and the drawing prompts.
+- Numbered circles along the top show each question's status: green means ready, yellow means still a placeholder, and red means something's missing.
+- Your work saves on that device as you go, so a refresh loses nothing.
+- At the end, **Upload to the quiz** sends it straight into Neon. Then go to host page → **⋯ → ↻ Reload questions**. You can also **download lmk26-questions.js** as a backup.
+
+**By hand:** edit the file as described below.
+
+
 Write the quiz in `js/questions.js` **on your laptop**. It's deliberately not in this repository. On host.html, choose **⋯ → Load quiz file** to upload it into Neon, where only the host PIN can read it. Load it again after any edit.
 
 - `choice` has up to 6 options; `answer` is the position of the right one (0 = first).

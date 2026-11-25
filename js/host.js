@@ -494,7 +494,7 @@
   }
 
   function render() {
-    if (!QUIZ) { app.innerHTML = `<div class="card center"><h2>No questions yet</h2><p>Load your quiz file (questions.js). It's stored in Neon where only the host PIN can read it — it never goes on the public website.</p>${fileBtn()}</div>`; bindFile(); return; }
+    if (!QUIZ) { app.innerHTML = `<div class="card center"><h2>No questions yet</h2><p>Make them in the <a href="builder.html" target="_blank" rel="noopener">question builder</a> (it uploads straight here), or load a quiz file. They're stored in Neon where only the host PIN can read them — never on the public website.</p>${fileBtn()} <button class="btn sm ghost" data-act="reloadq">↻ I've uploaded them — reload</button></div>`; bindFile(); return; }
     app.innerHTML = topbar() + `<main class="stage">${stage()}</main>` + controls() + menuHtml() + qrOverlay();
     bindFile(); tick();
   }
@@ -505,7 +505,7 @@
       <h3>Host menu</h3>
       <p class="small muted">Game id: <b>${esc(C.gameId)}</b> · ${B.mode === "local" ? "local test mode" : "live on Neon"}</p>
       <p class="small">Quiz: <b>${esc(QUIZ.title)}</b> — ${realQs().length} questions ${QSRC === "db" ? (B.mode === "neon" ? "(stored in Neon, host-only)" : "(stored in this browser)") : "(not saved)"}</p>
-      <div class="row">${fileBtn()}</div>
+      <div class="row"><a class="btn sm" href="builder.html" target="_blank" rel="noopener">✏️ Question builder</a>${fileBtn()}<button class="btn sm ghost" data-act="reloadq">↻ Reload questions</button></div>
       <div class="row"><button class="btn sm" data-act="export">Download results (JSON + CSV)</button></div>
       <div class="row"><button class="btn sm" data-act="gallery" ${Object.keys(D).length ? "" : "disabled"}>Download drawings gallery</button></div>
       <div class="row"><button class="btn sm" data-act="jump">Jump to question…</button></div>
@@ -551,6 +551,10 @@
     if (act === "gallery") await exportGallery();
     if (act === "menu") { menuOpen = !menuOpen; render(); }
     if (act === "qr") { qrOpen = true; render(); }
+    if (act === "reloadq") {
+      try { const fresh = await B.hostGetQuiz(); if (fresh) { QUIZ = fresh; QSRC = "db"; menuOpen = false; render(); alert(`Loaded ${fresh.questions.filter(q => q.type !== "draw").length} questions from the quiz database.`); } else alert("No questions saved yet."); }
+      catch (e) { alert("Couldn't reload: " + e.message); }
+    }
     if (act === "qrclose") { qrOpen = false; render(); }
     if (act === "jump") {
       const n = parseInt(prompt(`Jump to which question? (1–${Q().length})`), 10);
