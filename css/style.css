@@ -533,3 +533,21 @@ body.player .drawing.sm { max-width: min(300px, 38vh); }
 .draw .tbar { margin: 8px 0; }
 .draw > p.small { margin: 2px auto 0; }
 body.player #snowfront { display: none; } /* phones: snow behind the content only, never over text */
+
+/* ---------- bigger drawing area ---------- */
+#cv { aspect-ratio: 3 / 4; }
+body.drawing-now #app { padding: 6px 8px 4px; }
+body.drawing-now .draw .tbar { margin: 2px 0 6px; height: 12px; }
+body.drawing-now .draw .prompt { padding: 6px 10px; margin-bottom: 6px; }
+body.drawing-now .draw .prompt small { font-size: 10px; padding: 1px 8px; }
+body.drawing-now .draw .prompt b { font-size: 17px; margin-top: 2px; line-height: 1.15; }
+body.drawing-now .draw .tools { margin: 6px 0 0; gap: 5px; }
+body.drawing-now .draw .sw { width: 28px; height: 28px; }
+body.drawing-now .draw .sz { width: 34px; height: 34px; }
+body.drawing-now .draw .btn.sm { padding: 6px 9px; }
+body.drawing-now .drawhint { margin: 4px auto 0; font-size: 12px; }
+/* drawings are 3:4 now */
+.drawing { aspect-ratio: 3 / 4; }
+.qscreen .drawing { aspect-ratio: 3 / 4; max-height: 52vh; }
+body.player .drawing.sm { max-width: min(260px, 30vh); }
+.drawscreen .drawing, .pfinal .drawing { aspect-ratio: 3 / 4; }

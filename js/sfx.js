@@ -112,10 +112,12 @@ window.SFX = (() => {
   function play(name) { if (sfxOn && SOUNDS[name] && ensure() && ctx.state === "running") SOUNDS[name](ctx.currentTime + 0.01); }
 
   // ---------- background music: quiet, original, festive lo-fi ----------
-  // 84 bpm, 4 bars of 4 beats: Cmaj7 · Am7 · Fmaj7 · G(sus), soft pad + bell arpeggio + sleigh shaker.
-  const BPM = 84, BEAT = 60 / BPM, BAR = BEAT * 4, LOOP = BAR * 4;
-  const CHORDS = [[48, [64, 67, 71, 76]], [45, [64, 67, 69, 72]], [41, [64, 65, 69, 72]], [43, [62, 65, 67, 71]]];
-  const ARP = [0, 1, 2, 3, 2, 1, 3, 2];
+  // 108 bpm, 4 bars of 4 beats: C · Am7 · F · G, soft pad, bouncy bass, light kick/clap,
+  // sleigh shaker and a twinkly bell arpeggio.
+  const BPM = 108, BEAT = 60 / BPM, BAR = BEAT * 4, LOOP = BAR * 4;
+  const CHORDS = [[48, [64, 67, 72, 76]], [45, [64, 67, 69, 72]], [41, [65, 69, 72, 77]], [43, [62, 67, 71, 74]]];
+  const ARP = [0, 2, 1, 3, 2, 3, 1, 2];
+  const BASS = { 0: 0, 3: 12, 4: 7, 6: 0, 7: 12 }; // which eighths get a bass note, and how far above the root
   let musicTimer = null, nextBeat = null, clock = () => Date.now();
   function scheduleMusic() {
     if (!ctx || ctx.state !== "running") return;
@@ -129,15 +131,14 @@ window.SFX = (() => {
   }
   function musicStep(at, bar, half) { // half = which eighth of the bar, 0..7
       const [root, ch] = CHORDS[bar];
-      if (half === 0) {
-        ch.forEach(n => { tone(N(n), at, BAR * 1.05, { type: "triangle", vol: 0.05, a: 0.6, out: musicBus, filter: 1400 }); tone(N(n), at, BAR * 1.05, { type: "sine", vol: 0.04, a: 0.6, detune: 7, out: musicBus }); });
-        tone(N(root), at, BEAT * 1.8, { vol: 0.16, a: 0.02, out: musicBus });
-      }
-      if (half === 4) tone(N(root), at, BEAT * 1.6, { vol: 0.12, a: 0.02, out: musicBus });
-      if (half % 2 === 1) noise(at, 0.07, { vol: 0.025, type: "highpass", f: 8000, out: musicBus });
-      if (half === 2 || half === 6) kick(at, 0.08, musicBus);
+      if (half === 0) ch.forEach(n => { tone(N(n), at, BAR * 1.02, { type: "triangle", vol: 0.04, a: 0.25, out: musicBus, filter: 1600 }); tone(N(n), at, BAR, { type: "sine", vol: 0.03, a: 0.25, detune: 7, out: musicBus }); });
+      if (BASS[half] != null) tone(N(root + BASS[half]), at, BEAT * 0.45, { type: "triangle", vol: 0.17, a: 0.01, out: musicBus, filter: 900 });
+      if (half === 0 || half === 4) kick(at, 0.14, musicBus);
+      if (half === 2 || half === 6) noise(at, 0.12, { vol: 0.06, type: "bandpass", f: 1700, q: 0.9, out: musicBus, a: 0.003 }); // clap
+      noise(at, 0.05, { vol: half % 2 ? 0.035 : 0.018, type: "highpass", f: 8500, out: musicBus }); // shaker on every eighth
       const n = ch[ARP[half]] + 12;
-      if (bar !== 3 || half < 6) bell(n, at, 0.045, 0.9, musicBus);
+      bell(n, at, 0.05, 0.7, musicBus);
+      if (half === 7 && bar % 2 === 1) bell(ch[3] + 24, at + BEAT / 4, 0.03, 0.6, musicBus); // sparkle
   }
   function startMusic() {
     if (!ensure() || ctx.state !== "running") return;

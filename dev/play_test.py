@@ -15,6 +15,7 @@ QA = {"Which was our busiest month?": 3, "Who makes the best brew?": 1, "Longest
 W, H = (int(x) for x in os.environ.get("PHONE", "390x844").split("x"))
 PHONE = dict(viewport={"width": W, "height": H}, is_mobile=True, has_touch=True)
 SCROLLS = {}
+STUCK = []   # steps that should have moved on by themselves but didn't
 async def check_fit(pg, who):
     """Record any screen that needs scrolling (the join screen and the gallery are allowed to)."""
     r = await pg.evaluate("""() => { const st = document.querySelector('.pstage');
@@ -59,9 +60,28 @@ async def main():
             await host.wait_for_timeout(450); l = await label()
             for i, pg in enumerate(ps): await check_fit(pg, names[i])
             if "Pencils down" in l:
-                cur = await host.evaluate("Backend.get('current')"); await asyncio.sleep(1.3)
-                for i, pg in enumerate(ps): await pg.wait_for_selector("#cv", timeout=8000); await draw(pg, i, cur.get("portrait"))
-                await host.wait_for_timeout(2500); await nxt(); continue
+                cur = await host.evaluate("Backend.get('current')"); key = f"drew{cur.get('drawRound')}"
+                if key in taken:  # already drew: should move on by itself once everyone's in
+                    for _ in range(16):
+                        await host.wait_for_timeout(500)
+                        if (await label()) != l: break
+                    else:
+                        STUCK.append("Pencils down (everyone had drawn)"); await nxt()
+                    continue
+                taken.add(key); await asyncio.sleep(1.3)
+                for i, pg in enumerate(ps):
+                    await pg.wait_for_selector("#cv", timeout=8000)
+                    if i == 1 and "draw_screen" not in taken: taken.add("draw_screen"); await shot(pg, "02_drawing_screen")
+                    await draw(pg, i, cur.get("portrait"))
+                continue
+            if "Reveal answer" in l or "Start guessing" in l:
+                # these should happen automatically; give it 8 s before calling it stuck
+                for _ in range(16):
+                    await host.wait_for_timeout(500)
+                    if (await label()) != l: break
+                else:
+                    STUCK.append(l.strip()); await nxt()
+                continue
             if "Stop answers" in l:
                 await asyncio.sleep(1.3); cur = await host.evaluate("Backend.get('current')")
                 for i, pg in enumerate(ps):
@@ -72,8 +92,7 @@ async def main():
                         elif await pg.locator("#num").count():
                             await pg.tap("#num"); await pg.keyboard.type(str(18000 if i == 0 else random.randint(500, 60000))); await pg.tap("#numgo")
                     except Exception: pass
-                await host.wait_for_timeout(1800)
-                if (await label()).startswith("Stop"): await nxt()
+                await host.wait_for_timeout(2500)  # everyone answered: it closes and reveals by itself
                 continue
             if "Leaderboard" in l:
                 cur = await host.evaluate("Backend.get('current')"); k = "draw" if cur.get("drawingOf") else cur["type"]
@@ -84,9 +103,12 @@ async def main():
             if "wrap" in l:
                 await ps[1].wait_for_timeout(1500); await shot(ps[1], "05_gallery", True); break
             await nxt()
+        ans = await host.evaluate("Backend.get('answers').then(a => Object.fromEntries(Object.entries(a || {}).map(([q, x]) => [q, Object.keys(x || {}).length])))")
+        print("answers per question:", ans)
         sc = await host.evaluate("Backend.get('scores')")
         print("final:", sorted((v["rank"], v["name"], v["total"]) for v in sc.values()))
         print(f"phone {W}x{H}: screens that need scrolling:", SCROLLS or "none")
+        print("steps that didn't move on by themselves:", STUCK or "none")
         print("page errors:", errs or "none")
         await b.close()
 asyncio.run(main())

@@ -30,6 +30,7 @@
   let strokes = [];
   const loadStrokes = r => { SKEY = "nn_strokes_" + C.gameId + AS + "_" + r; try { strokes = JSON.parse(localStorage.getItem(SKEY)) || []; } catch { strokes = []; } };
   let pen = { c: "#14112b", s: 8 };
+  const CW = 480, CH = 640; // drawings are 3:4 portrait, to use the phone's height
   const COLOURS = ["#14112b", "#ff2e88", "#ff8a00", "#ffd400", "#21d07a", "#18c6ff", "#7b5cff", "#8b5a2b", "#ffffff"];
 
   // stable "random" line per question so it doesn't change on refresh
@@ -125,7 +126,7 @@
       return `<section class="draw">
         <div class="tbar"><i id="tbar"></i></div>
         <div class="prompt card"><small>${CUR.portrait ? "SELF-PORTRAIT" : "YOUR SECRET PROMPT — don't show anyone!"}</small><b>${esc(MYPROMPT)}</b></div>
-        <canvas id="cv" width="480" height="480"></canvas>
+        <canvas id="cv" width="${CW}" height="${CH}"></canvas>
         <div class="tools">
           ${COLOURS.map(c => `<button class="sw ${pen.c === c ? "on" : ""}" data-col="${c}" style="background:${c}" aria-label="colour"></button>`).join("")}
         </div>
@@ -135,7 +136,7 @@
           <button class="btn sm ghost" data-tool="clear">Clear</button>
           <button class="btn sm primary" data-tool="send">Done ✓</button>
         </div>
-        <p class="muted small center">${CUR.portrait ? "Write your name on it too! It sends itself when the time's up." : "No words or letters — that's cheating. Auto-sends when time's up."}</p>
+        <p class="muted small center drawhint">${CUR.portrait ? "Write your name too! Sends itself when time's up." : "No words or letters! Sends itself when time's up."}</p>
       </section>`;
     }
     if ((ph === "question" || ph === "closed") && CUR && CUR.artist === pid) {
@@ -247,7 +248,9 @@
     const key = JSON.stringify([shareOpen, authed, gateErr, roomKey, !!me, me && me.name, S.phase, S.q, CUR && CUR.index, !!MYANS, MYRES, REV && REV.index, MYSC, F && F.stage, S.phase === "question" && B.now() > S.endsAt + 500, MYPROMPT, !!(MYDRAW && MYDRAW.img), !!CURIMG, CUR && CUR.drawingOf]);
     if (key === lastKey) { const c = $("#count"); c && (c.textContent = count); return; }
     lastKey = key;
-    app.innerHTML = header() + `<main class="pstage">${view()}</main>` + shareOverlay();
+    const drawingNow = (S.phase === "draw") && MYPROMPT && !(MYDRAW && MYDRAW.img) && me;
+    document.body.classList.toggle("drawing-now", !!drawingNow);
+    app.innerHTML = (drawingNow ? "" : header()) + `<main class="pstage">${view()}</main>` + shareOverlay();
     const sb = $("#sharebtn"); if (sb) sb.onclick = () => { shareOpen = true; lastKey = ""; render(); };
     const sc = $("#shareclose"); if (sc) sc.onclick = () => { shareOpen = false; lastKey = ""; render(); };
     const jb = $("#joinbtn");
@@ -278,7 +281,7 @@
 
   // ---------- drawing ----------
   function paint(ctx, list) {
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, 480, 480);
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, CW, CH);
     ctx.lineCap = ctx.lineJoin = "round";
     for (const st of list) {
       ctx.strokeStyle = ctx.fillStyle = st.c; ctx.lineWidth = st.s;
@@ -293,7 +296,7 @@
     const cv = $("#cv"); if (!cv) return;
     const ctx = cv.getContext("2d"); paint(ctx, strokes);
     let cur = null;
-    const pos = e => { const r = cv.getBoundingClientRect(); return [Math.round((e.clientX - r.left) * 480 / r.width), Math.round((e.clientY - r.top) * 480 / r.height)]; };
+    const pos = e => { const r = cv.getBoundingClientRect(); return [Math.round((e.clientX - r.left) * CW / r.width), Math.round((e.clientY - r.top) * CH / r.height)]; };
     cv.onpointerdown = e => { e.preventDefault(); cv.setPointerCapture(e.pointerId); cur = { c: pen.c, s: pen.s, p: [pos(e)] }; strokes.push(cur); paint(ctx, strokes); };
     cv.onpointermove = e => {
       if (!cur) return; const p = pos(e), l = cur.p.at(-1);
@@ -316,7 +319,7 @@
     if (submitting || drawR == null || (MYDRAW && MYDRAW.img) || !strokes.length || !me) return;
     submitting = true;
     try {
-      const c = document.createElement("canvas"); c.width = c.height = 480;
+      const c = document.createElement("canvas"); c.width = CW; c.height = CH;
       paint(c.getContext("2d"), strokes);
       const img = c.toDataURL("image/jpeg", 0.7);
       await B.set(`drawings/${drawR}/${pid}`, { img, prompt: MYPROMPT, at: B.TS });
@@ -343,8 +346,8 @@
     const cv = st.querySelector("#cv");
     if (cv) { // the canvas takes exactly the height that's left, so the tools stay on screen
       cv.style.width = "";
-      const others = st.scrollHeight - cv.offsetHeight, avail = window.innerHeight - st.getBoundingClientRect().top - 8 - others;
-      cv.style.width = Math.max(180, Math.min(st.clientWidth, avail)) + "px";
+      const others = st.scrollHeight - cv.offsetHeight, avail = window.innerHeight - st.getBoundingClientRect().top - 16 - others;
+      cv.style.width = Math.max(180, Math.min(st.clientWidth, avail * CW / CH)) + "px";
       return;
     }
     if (st.querySelector(".join, .pgallery")) return;
@@ -352,6 +355,7 @@
     if (h > avail + 2) st.style.zoom = Math.max(0.66, avail / h).toFixed(3);
   }
   window.addEventListener("resize", () => requestAnimationFrame(fitScreen));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitScreen()); // re-measure once the fonts are in
 
   function tick() {
     const bar = $("#tbar");

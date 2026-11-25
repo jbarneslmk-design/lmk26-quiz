@@ -74,6 +74,9 @@ So **changing the questions mid-game shifts indices** and mixes things up. The b
 - **Drawing questions:** the artist can't answer. They get `artistBonus` (150) per correct "what is it?" and `fooledBonus` (100) per person fooled on "who drew it?".
 - **Awards:** Fastest Finger, Hot Streak (3+), Wildest Guess (over 25% off), and Christmas Pudding (last place, only with 5+ players).
 
+### Moving on automatically
+With `autoAdvance` on (the default; a builder setting), the host page moves on by itself. Once everyone has answered (or time's up), it reveals after 1.8 s (`maybeAutoAdvance`). Once everyone has sent a drawing, it's pencils down (`maybeAutoPencils`) and the quiz carries on. Reveal → standings → next question stay manual. Each automatic step re-reads `state` first, so it never fires twice. **Run only one host screen at a time**: two hosts would both try to move on.
+
 ### The flow (host.js `step()`)
 `lobby → [draw → drawdone] → question → closed → reveal → board → next…` and then `final` stages 0–5. A question closes when its timer ends or when everyone has answered (`autoCloseWhenAllAnswered`). Self-portrait rounds skip question generation. A `busy` flag stops double-taps from skipping a question.
 
@@ -84,12 +87,12 @@ So **changing the questions mid-game shifts indices** and mixes things up. The b
 - **Shared moments** (question start, early close, drawing start/end, reveal, standings, final, each podium place, winner, awards, gallery): the host writes `fx = {n, name, at, pid?}`, where `at` is server time plus 1.2 s. Every phone schedules the sound for that moment on the shared clock (`SFX.playAt(name, at, B.now())`), so the room hears it together. On `reveal`, each phone also plays its own result (correct, wrong, miss or artist) just after the drumroll; on `winner`, the winner's phone plays the bigger `winnerMe`.
 - **Countdown:** each phone plays the ticks for the last 5 s, then time's-up, worked out from `state.endsAt` (server time), so these are in sync with no cue needed.
 - **Your own taps** (lock-in, sending a drawing, joining) play straight away.
-- **Music:** an original lo-fi loop at 84 bpm, Cmaj7 · Am7 · Fmaj7 · G. Its bars are counted from the shared clock, so phones that switch it on are in step. It gets quieter during questions and drawing. Off by default (🎵); effects are on by default (🔊).
+- **Music:** an original, upbeat-but-light loop at 108 bpm (C · Am7 · F · G, with bouncy bass, light kick and clap, shaker and bell arpeggio). Its bars are counted from the shared clock, so phones that switch it on are in step. It gets quieter during questions and drawing. Off by default (🎵); effects are on by default (🔊).
 - **Browsers only allow sound after a tap.** The first tap anywhere unlocks it, and until then the header shows "🔇 Tap for sound". iPhones in silent mode may stay quiet.
 - `dev/sound_demo.py` prints every sound's loudness and writes a demo WAV.
 
 ### Phones fit on one screen
-`fitScreen()` in player.js shrinks any screen taller than the phone (CSS `zoom`, down to 66%). The join screen and gallery may scroll. The drawing canvas is sized to exactly the height that's left, so the tools are always visible. `dev/play_test.py` reports any screen that needs scrolling; run it with `PHONE=375x667` (iPhone SE) as well as the default 390x844.
+`fitScreen()` in player.js shrinks any screen taller than the phone (CSS `zoom`, down to 66%). The join screen and gallery may scroll. Drawings are **3:4 portrait** (480×640). While drawing, the header is hidden and the canvas takes exactly the height that's left, so the tools are always visible. `dev/play_test.py` reports any screen that needs scrolling; run it with `PHONE=375x667` (iPhone SE) as well as the default 390x844.
 
 ## Security model
 - `quiz_web` (its password is in `js/config.js`, public on purpose) can only `EXECUTE` six SECURITY DEFINER functions: `check, sync, write, reset, host_put_quiz, host_get_quiz`. It has no table access.
@@ -106,7 +109,7 @@ So **changing the questions mid-game shifts indices** and mixes things up. The b
 - **Automated:** `CHROME=/path/to/chrome python3 dev/play_test.py` plays a full phones-only game with 4 players (portraits, questions, a drawing round, podium and gallery). Screenshots go to `dev/shots/`. Run it after any change to host.js or player.js.
 
 ### Rules that bit us (keep them)
-1. **Bump `?v=N`** on every `<script>`/`<link>` in all three HTML files whenever JS or CSS changes, otherwise phones keep the old cached copy for up to 10 minutes. It's `?v=11` at the moment.
+1. **Bump `?v=N`** on every `<script>`/`<link>` in all three HTML files whenever JS or CSS changes, otherwise phones keep the old cached copy for up to 10 minutes. It's `?v=12` at the moment.
 2. **Never write `onkeydown = e => cond && action()`.** Returning `false` cancels the keystroke, so the box ignores typing. Use `e => { if (cond) action(); }`.
 3. **Don't send a `Content-Type` header to Neon**, because its CORS rules reject it from browsers. Use the `Neon-Connection-String`, `Neon-Raw-Text-Output: true` and `Neon-Array-Mode: true` headers, and put the query and params in the body.
 4. **Test with real key presses and taps**, not Playwright `fill()`, which skips key events and hid rule 2.

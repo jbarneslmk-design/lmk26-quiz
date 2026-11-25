@@ -193,6 +193,34 @@
   const allDrawings = () => Object.entries(D || {}).flatMap(([r, byPid]) =>
     Object.entries(byPid || {}).filter(([, d]) => d && d.img).map(([pid, d]) => ({ r: +r, pid, img: d.img, prompt: markers()[r] && markers()[r].portrait ? "Self-portrait" : d.prompt || (ASG[r] || {})[pid] || "" })));
 
+  // Once everyone has answered (or time's up), reveal the answer by itself after a short
+  // pause; once everyone has drawn (or time's up), carry on by itself. Reveal → standings →
+  // next question stay with the host, so they can tell the story. Setting: autoAdvance.
+  const AUTO_PAUSE = 1800;
+  const autoOn = () => QUIZ.autoAdvance !== false;
+  let autoKey = null;
+  function maybeAutoAdvance() {
+    if (!autoOn()) return;
+    const ph = S.phase, q = S.q, key = ph + ":" + q;
+    if ((ph !== "closed" && ph !== "drawdone") || autoKey === key) return;
+    autoKey = key;
+    const go = async () => {
+      if (busy) return setTimeout(go, 400);           // the host is mid-step: try again shortly
+      const st = await B.get("state");                  // still where we were? (the host may have pressed the button)
+      if (!st || st.phase !== ph || st.q !== q) return;
+      next();
+    };
+    setTimeout(go, ph === "drawdone" ? AUTO_PAUSE + 600 : AUTO_PAUSE);
+  }
+  function maybeAutoPencils() { // everyone has sent a drawing → pencils down early
+    if (S.phase !== "draw" || !autoOn()) return;
+    const r = roundOf(Q()[S.q]), dr = D[r] || {}, ps = players();
+    if (ps.length && ps.every(p => dr[p.id] && dr[p.id].img) && maybeAutoPencils.q !== S.q) {
+      const q = S.q; maybeAutoPencils.q = q;
+      setTimeout(() => { if (S.phase === "draw" && S.q === q && !busy) next(); }, 1200);
+    }
+  }
+
   function maybeAutoClose() {
     if (S.phase !== "question" || QUIZ.autoCloseWhenAllAnswered === false) return;
     const art = (Q()[S.q] || {}).artist;
@@ -340,7 +368,7 @@
   async function next() {
     if (busy) return;
     busy = true; render();
-    try { await step(); } finally { busy = false; render(); }
+    try { await step(); } finally { busy = false; render(); maybeAutoAdvance(); }
   }
   async function step() {
     const ph = S.phase || "lobby";
@@ -651,9 +679,9 @@
   window.addEventListener("beforeunload", backup);
 
   if (!(await B.get("state"))) await B.set("state", { phase: "lobby" });
-  B.on("state", v => { S = v || { phase: "lobby" }; watchAnswers(); render(); });
+  B.on("state", v => { S = v || { phase: "lobby" }; watchAnswers(); render(); maybeAutoAdvance(); });
   B.on("players", v => { P = v || {}; render(); assignLate(); });
-  B.on("drawings", v => { D = v || {}; render(); });
+  B.on("drawings", v => { D = v || {}; render(); maybeAutoPencils(); });
   B.on("drawAssign", v => { ASG = v || {}; });
   B.on("dq", v => { DQ = v || {}; render(); });
   B.on("results", v => { R = v || {}; });

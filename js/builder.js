@@ -153,6 +153,7 @@
         <label>Subtitle (shown under the title)<input class="inp" data-f="s.subtitle" value="${esc(quiz.subtitle || "")}"></label>
         <label>Seconds per question (default)<input class="inp" data-f="s.defaultDuration" data-t="int" inputmode="numeric" value="${quiz.defaultDuration || 30}"></label>
         <label class="tick"><input type="checkbox" data-f="s.autoCloseWhenAllAnswered" data-t="bool" ${quiz.autoCloseWhenAllAnswered !== false ? "checked" : ""}> Close a question early once everyone has answered</label>
+        <label class="tick"><input type="checkbox" data-f="s.autoAdvance" data-t="bool" ${quiz.autoAdvance !== false ? "checked" : ""}> Reveal the answer automatically once everyone's in or time's up (and carry on after drawing rounds)</label>
       </div>
       <h3>Self-portraits</h3>
       <div class="grid2">
