@@ -53,8 +53,8 @@ window.Backend = (() => {
       try {
         res = await fetch(endpoint, {
           method: "POST",
+          // no Content-Type header: Neon's CORS rules don't allow it from web pages
           headers: {
-            "Content-Type": "application/json",
             "Neon-Connection-String": neonCfg.connectionString,
             "Neon-Raw-Text-Output": "true",
             "Neon-Array-Mode": "true"
