@@ -78,7 +78,7 @@ Write the quiz in `js/questions.js` **on your laptop**. It's deliberately not in
 - `double: true` doubles the points (good for the last question).
 - `funFact` is the story you tell after the reveal. This is where the funny real-company stuff goes.
 - `todo: true` marks a placeholder. The host screen shows how many are left.
-- `drawPrompts` holds the secret drawing prompts. Have at least one per person.
+- `drawPrompts` holds the secret drawing prompts. Have at least one per person. Write them as `"Prompt | look-alike | look-alike | look-alike"`: the look-alikes are near-misses that become the wrong answers, so the real one does not stand out. In the builder, **Drawing prompts → Use the LMK prompt pack** gives you 65 ready-made ones.
 - `prizes` lists the podium prizes in order 1st, 2nd, 3rd.
 
 Players only ever receive each question as you show it, and the answer only when you reveal it.
