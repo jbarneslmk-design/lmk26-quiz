@@ -12,7 +12,7 @@ window.QUIZ_CONFIG = {
   // While this still says PASTE..., the quiz runs in LOCAL TEST MODE
   // (tabs in one browser), handy for rehearsing on your own.
   neon: {
-    connectionString: "PASTE_QUIZ_WEB_CONNECTION_STRING"
+    connectionString: "postgresql://quiz_web:VLtFq6GO0c3b44i0EqmfdyG6l4xv1akr@ep-shy-shape-bj5y1ikk-pooler.c-3.eu-west-2.aws.neon.tech/neondb?sslmode=require"
   },
 
   // Local test mode only (never used live — the real PIN/password live in Neon):
