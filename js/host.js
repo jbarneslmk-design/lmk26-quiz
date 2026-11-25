@@ -3,6 +3,7 @@
   NN.scenery();
   const app = $("#app");
 
+  const gateJoinUrl = location.href.replace(/host\.html.*$/, "").replace(/[?#].*$/, "");
   // ---------- PIN gate (checked by Neon, not in the page) ----------
   const PINKEY = "nn_host_pin_" + C.gameId;
   const errText = m => /bad_pin/.test(m) ? "Wrong PIN. Try again." : /no_game/.test(m) ? "This quiz hasn't been set up in Neon yet." : /offline/.test(m) ? "No internet connection." : "Couldn't connect: " + m;
@@ -11,12 +12,16 @@
   if (saved) { try { await tryLogin(saved); ok = true; } catch { sessionStorage.removeItem(PINKEY); } }
   if (!ok) {
     await new Promise(res => {
-      app.innerHTML = `<div class="card center gate">
+      app.innerHTML = `<div class="gatewrap">
+        <div class="card gatejoin"><h2 class="title sm">PLAYERS: SCAN ME</h2>
+          <div class="qr">${window.NNQR ? NNQR.svg(gateJoinUrl) : ""}</div>
+          <p class="url">${esc(gateJoinUrl.replace(/^https?:\/\//, ""))}</p></div>
+        <div class="card gate">
         <h1 class="logo sm">HOST</h1>
         <p>Enter the host PIN</p>
         <input id="pin" class="big-input" type="password" inputmode="numeric" autocomplete="off" />
         <button id="go" class="btn primary">Unlock</button>
-        <p id="err" class="muted"></p></div>`;
+        <p id="err" class="muted"></p></div></div>`;
       const go = async () => {
         const pin = $("#pin").value.trim(); if (!pin) return;
         $("#go").disabled = true; $("#err").textContent = "Checking…";
@@ -318,11 +323,11 @@
 
   // ---------- rendering ----------
   const joinUrl = () => location.href.replace(/host\.html.*$/, "").replace(/[?#].*$/, "");
-  function qr(url) {
-    if (!window.qrcode) return "";
-    const q = qrcode(0, "M"); q.addData(url); q.make();
-    return q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
-  }
+  const qr = url => (window.NNQR ? NNQR.svg(url) : "");
+  let qrOpen = false;
+  const qrOverlay = () => qrOpen ? `<div class="modal qrmodal" data-act="qrclose">
+      <div class="card qrbig"><h2 class="title sm">SCAN TO PLAY</h2><div class="qr">${qr(joinUrl())}</div>
+      <p class="url">${esc(joinUrl().replace(/^https?:\/\//, ""))}</p><p class="muted small">Tap anywhere to close</p></div></div>` : "";
   function optionsHtml(q, counts, correct) {
     const max = counts ? Math.max(1, ...counts) : 1;
     return `<div class="opts host">${q.options.map((o, i) => `
@@ -360,6 +365,7 @@
       <span class="pill">👥 ${n}</span>
       <span class="grow"></span>
       <button class="btn sm" data-act="export">Save results</button>
+      <button class="btn sm" data-act="qr" title="Show the join QR code full screen">📱 Join QR</button>
       <button class="btn sm ghost" data-act="menu">⋯</button>
     </header>`;
   }
@@ -373,7 +379,7 @@
         <div class="hero"><h1 class="logo">${esc(QUIZ.title || "LMK 26")}</h1><p class="sub">${esc(QUIZ.subtitle || "")}</p></div>
         <div class="joinbox card">
           <div class="qr">${qr(joinUrl())}</div>
-          <div><p class="muted">Grab your phone and go to</p><p class="url">${esc(joinUrl())}</p>
+          <div><p class="muted">Grab your phone and go to</p><p class="url">${esc(joinUrl().replace(/^https?:\/\//, ""))}</p>
           <p class="muted small">${realQs().length} questions${Q().some(q => q.type === "draw") ? " + drawing round" : ""} loaded${todo ? ` · <span class="warn-t">⚠ ${todo} still placeholders</span>` : ""}</p></div>
         </div>
         <div class="chips">${ps.map(p => `<button class="chip" data-kick="${p.id}" title="Tap to remove">${esc(p.name)}</button>`).join("") || `<p class="muted">Waiting for players…</p>`}</div>
@@ -489,7 +495,7 @@
 
   function render() {
     if (!QUIZ) { app.innerHTML = `<div class="card center"><h2>No questions yet</h2><p>Load your quiz file (questions.js). It's stored in Neon where only the host PIN can read it — it never goes on the public website.</p>${fileBtn()}</div>`; bindFile(); return; }
-    app.innerHTML = topbar() + `<main class="stage">${stage()}</main>` + controls() + menuHtml();
+    app.innerHTML = topbar() + `<main class="stage">${stage()}</main>` + controls() + menuHtml() + qrOverlay();
     bindFile(); tick();
   }
   const fileBtn = () => `<label class="btn sm">Load quiz file<input type="file" id="qfile" accept=".json,.js" hidden></label>`;
@@ -544,6 +550,8 @@
     if (act === "export") { await exportAll(); if (Object.keys(D).length) await exportGallery(); }
     if (act === "gallery") await exportGallery();
     if (act === "menu") { menuOpen = !menuOpen; render(); }
+    if (act === "qr") { qrOpen = true; render(); }
+    if (act === "qrclose") { qrOpen = false; render(); }
     if (act === "jump") {
       const n = parseInt(prompt(`Jump to which question? (1–${Q().length})`), 10);
       if (n >= 1 && n <= Q().length) { menuOpen = false; await goQuestion(n - 1); }

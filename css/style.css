@@ -314,3 +314,18 @@ body.player .stars { background: rgba(22, 10, 43, .85); padding: 4px 12px; borde
 .answered { background: var(--panel); border: 3px solid var(--ink); border-radius: 14px; padding: 10px 16px; box-shadow: var(--sh-sm); }
 .drawscreen .sub { transform: none; }
 .gate-err { background: var(--red); color:#fff; font-weight:800; padding:8px 12px; border-radius:10px; border:3px solid var(--ink); margin:0 0 12px; }
+
+/* join QR: PIN screen, lobby and full-screen overlay */
+.gatewrap { display: flex; gap: 28px; justify-content: center; align-items: center; flex-wrap: wrap; min-height: 100dvh; padding: 20px; }
+.gatewrap .card.gate { margin: 0; max-width: 380px; width: 100%; }
+.gatejoin { text-align: center; transform: rotate(-1.5deg); }
+.gatejoin .qr, .qrbig .qr { width: min(300px, 70vw); aspect-ratio: 1; margin: 6px auto; background: #fff; border: 4px solid var(--ink); border-radius: 14px; padding: 8px; box-shadow: var(--sh-sm); }
+.gatejoin .qr svg, .qrbig .qr svg { width: 100%; height: 100%; display: block; }
+.gatejoin .url, .qrbig .url { font-family: var(--head); font-size: 26px; color: var(--gold); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--ink); margin: 10px 0 0; word-break: break-all; }
+.joinbox .qr { width: 240px; height: 240px; }
+.qrmodal { z-index: 20; cursor: pointer; }
+.qrbig { text-align: center; padding: 26px 34px; }
+.qrbig .qr { width: min(62vh, 80vw); }
+.qrbig .url { font-size: clamp(24px, 3vw, 40px); }
+/* keep the front snow off the QR codes so they always scan */
+.gatejoin, .joinbox { position: relative; z-index: 6; }
