@@ -98,6 +98,8 @@ async def main():
                 cur = await host.evaluate("Backend.get('current')"); k = "draw" if cur.get("drawingOf") else cur["type"]
                 if k not in taken: taken.add(k); await ps[1].wait_for_timeout(1500); await shot(ps[1], "02_reveal_" + k, True)
                 await nxt(); continue
+            if "Reveal 2nd" in l or "Reveal the winner" in l:
+                await ps[1].wait_for_timeout(1500); await shot(ps[1], "03_podium_" + ("3rd" if "2nd" in l else "2nd")); await nxt(); continue
             if "Special awards" in l:
                 await asyncio.sleep(1.6); await shot(ps[0], "03_winner_own_phone"); await shot(ps[2], "04_winner_other_phone", True); await nxt(); continue
             if "wrap" in l:

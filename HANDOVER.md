@@ -109,7 +109,7 @@ With `autoAdvance` on (the default; a builder setting), the host page moves on b
 - **Automated:** `CHROME=/path/to/chrome python3 dev/play_test.py` plays a full phones-only game with 4 players (portraits, questions, a drawing round, podium and gallery). Screenshots go to `dev/shots/`. Run it after any change to host.js or player.js.
 
 ### Rules that bit us (keep them)
-1. **Bump `?v=N`** on every `<script>`/`<link>` in all three HTML files whenever JS or CSS changes, otherwise phones keep the old cached copy for up to 10 minutes. It's `?v=12` at the moment.
+1. **Bump `?v=N`** on every `<script>`/`<link>` in all three HTML files whenever JS or CSS changes, otherwise phones keep the old cached copy for up to 10 minutes. It's `?v=13` at the moment.
 2. **Never write `onkeydown = e => cond && action()`.** Returning `false` cancels the keystroke, so the box ignores typing. Use `e => { if (cond) action(); }`.
 3. **Don't send a `Content-Type` header to Neon**, because its CORS rules reject it from browsers. Use the `Neon-Connection-String`, `Neon-Raw-Text-Output: true` and `Neon-Array-Mode: true` headers, and put the query and params in the body.
 4. **Test with real key presses and taps**, not Playwright `fill()`, which skips key events and hid rule 2.

@@ -222,7 +222,7 @@
             ${p.prize ? `<div class="prize">🎁 ${esc(p.prize.name)}${p.prize.from ? `<small>from ${esc(p.prize.from)}</small>` : ""}</div>` : ""}` : `<div class="av lg none">?</div><div class="pn">Drumroll…</div>`}</div>`; };
       const myLine = mine ? `<p class="center myfinal">You finished <b>${ordinal(mine.rank)}</b> of ${mine.of} with ${fmt(mine.total)} pts</p>` : "";
       if (st < 3) return `<section class="pfinal"><h2 class="title sm">THE FINAL COUNTDOWN</h2>
-        <div class="ppod">${podCard(2)}${podCard(1)}${podCard(0)}</div></section>`;
+        <div class="ppod tower">${podCard(0)}${podCard(1)}${podCard(2)}</div></section>`; // 1st on the top step; revealed from the bottom up
       if (st === 3) return `<section class="pfinal">${pod[0] ? NN.celebration(portraitOf(pod[0].pid), pod[0].name, pod[0].total, pod[0].prize, pod[0].pid === pid) : ""}
         <div class="ppod small">${podCard(1)}${podCard(2)}</div>${myLine}</section>`;
       if (st === 4) return `<section class="pfinal"><h2 class="title sm">SPECIAL AWARDS</h2>${myLine}

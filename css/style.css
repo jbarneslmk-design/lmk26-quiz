@@ -551,3 +551,13 @@ body.drawing-now .drawhint { margin: 4px auto 0; font-size: 12px; }
 .qscreen .drawing { aspect-ratio: 3 / 4; max-height: 52vh; }
 body.player .drawing.sm { max-width: min(260px, 30vh); }
 .drawscreen .drawing, .pfinal .drawing { aspect-ratio: 3 / 4; }
+
+/* phones: podium tower — 1st on the top step, 3rd at the bottom, revealed from the bottom up */
+.ppod.tower { justify-items: center; gap: 8px; }
+.ppod.tower .pcard { width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 4px 10px; padding: 10px 12px; }
+.ppod.tower .pcard.p1 { width: 76%; } .ppod.tower .pcard.p2 { width: 88%; } .ppod.tower .pcard.p3 { width: 100%; }
+.ppod.tower .pcard .place { width: 100%; font-size: 26px; line-height: 1; }
+.ppod.tower .pcard .av.lg { width: 64px; height: 64px; font-size: 24px; }
+.ppod.tower .pcard .pn { font-size: 22px; }
+.ppod.tower .pcard .prize { width: 100%; font-size: 14px; padding: 4px 8px; }
+.ppod.tower .pcard.p1 { border-color: var(--ink); box-shadow: 0 0 0 4px var(--gold), var(--sh-sm); }
