@@ -110,5 +110,10 @@ window.NN = (() => {
     return `<div class="stars" title="Streak">${s}</div>`;
   }
 
-  return { esc, $, fmt, pick, LETTERS, ordinal, parseNum, LINES, scenery, stars };
+  // The players' page address: the folder this page is in, whatever the page is called
+  // (works for .../lmk26-quiz/host, .../host.html, .../index.html or .../).
+  const joinUrl = () => { const u = new URL(".", location.href); return u.origin + u.pathname; };
+  const shortUrl = u => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+  return { esc, $, fmt, pick, LETTERS, ordinal, parseNum, LINES, scenery, stars, joinUrl, shortUrl };
 })();

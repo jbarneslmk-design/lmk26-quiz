@@ -64,8 +64,15 @@
     navigator.vibrate && navigator.vibrate(30);
   }
 
+  // share the players' page with someone else: QR of the join address
+  let shareOpen = false;
+  const joinQr = () => (window.NNQR ? NNQR.svg(NN.joinUrl()) : "");
+  const shareOverlay = () => shareOpen ? `<div class="modal qrmodal" id="shareclose">
+      <div class="card qrbig"><h2 class="title sm">SCAN TO PLAY</h2><div class="qr">${joinQr()}</div>
+      <p class="url">${esc(NN.shortUrl(NN.joinUrl()))}</p><p class="muted small">Let your mate scan this. Tap to close.</p></div></div>` : "";
   const header = () => `<header class="ptop"><span class="brand">${esc((CUR && CUR.round) || "LMK 26")}</span>
-    ${me ? `<span class="me">${esc(me.name)}${MYSC ? ` · <b>${fmt(MYSC.total)}</b>` : ""}</span>` : ""}</header>`;
+    <span class="ptop-r">${me ? `<span class="me">${esc(me.name)}${MYSC ? ` · <b>${fmt(MYSC.total)}</b>` : ""}</span>` : ""}
+    <button class="sharebtn" id="sharebtn" aria-label="Show the join QR code">📱 QR</button></span></header>`;
 
   function view() {
     const ph = S.phase || "lobby";
@@ -88,7 +95,8 @@
     if (ph === "lobby") return `<section class="wait center">
         <h2 class="title">YOU'RE IN</h2><p class="big">${esc(me.name)}</p>
         <p class="muted">Phones face up, drinks in hand. Waiting for the boss to start…</p>
-        <p class="small"><span id="count">${count}</span> players ready</p></section>`;
+        <p class="small"><span id="count">${count}</span> players ready</p>
+        <div class="card sharecard"><small>GET YOUR MATES IN</small><div class="qr">${joinQr()}</div><p class="muted small">Let them scan this</p></div></section>`;
     if ((ph === "draw" || ph === "drawdone") && CUR) {
       if (MYDRAW && MYDRAW.img) return `<section class="wait center"><h2 class="title">SUBMITTED</h2>
         <img class="drawing sm" src="${MYDRAW.img}" alt=""><p class="muted">A masterpiece. Keep a poker face — you'll be guessing everyone else's next.</p></section>`;
@@ -177,10 +185,12 @@
 
   function render() {
     if (ready < 1) return;
-    const key = JSON.stringify([authed, gateErr, !!me, me && me.name, S.phase, S.q, CUR && CUR.index, !!MYANS, MYRES, REV && REV.index, MYSC, F && F.stage, S.phase === "question" && B.now() > S.endsAt + 500, MYPROMPT, !!(MYDRAW && MYDRAW.img), !!CURIMG, CUR && CUR.drawingOf]);
+    const key = JSON.stringify([shareOpen, authed, gateErr, !!me, me && me.name, S.phase, S.q, CUR && CUR.index, !!MYANS, MYRES, REV && REV.index, MYSC, F && F.stage, S.phase === "question" && B.now() > S.endsAt + 500, MYPROMPT, !!(MYDRAW && MYDRAW.img), !!CURIMG, CUR && CUR.drawingOf]);
     if (key === lastKey) { const c = $("#count"); c && (c.textContent = count); return; }
     lastKey = key;
-    app.innerHTML = header() + `<main class="pstage">${view()}</main>`;
+    app.innerHTML = header() + `<main class="pstage">${view()}</main>` + shareOverlay();
+    const sb = $("#sharebtn"); if (sb) sb.onclick = () => { shareOpen = true; lastKey = ""; render(); };
+    const sc = $("#shareclose"); if (sc) sc.onclick = () => { shareOpen = false; lastKey = ""; render(); };
     const jb = $("#joinbtn");
     if (jb) {
       const go = async () => {

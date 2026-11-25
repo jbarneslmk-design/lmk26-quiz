@@ -3,7 +3,7 @@
   NN.scenery();
   const app = $("#app");
 
-  const gateJoinUrl = location.href.replace(/host\.html.*$/, "").replace(/[?#].*$/, "");
+  const gateJoinUrl = NN.joinUrl();
   // ---------- PIN gate (checked by Neon, not in the page) ----------
   const PINKEY = "nn_host_pin_" + C.gameId;
   const errText = m => /bad_pin/.test(m) ? "Wrong PIN. Try again." : /no_game/.test(m) ? "This quiz hasn't been set up in Neon yet." : /offline/.test(m) ? "No internet connection." : "Couldn't connect: " + m;
@@ -322,7 +322,7 @@
   }
 
   // ---------- rendering ----------
-  const joinUrl = () => location.href.replace(/host\.html.*$/, "").replace(/[?#].*$/, "");
+  const joinUrl = NN.joinUrl;
   const qr = url => (window.NNQR ? NNQR.svg(url) : "");
   let qrOpen = false;
   const qrOverlay = () => qrOpen ? `<div class="modal qrmodal" data-act="qrclose">
