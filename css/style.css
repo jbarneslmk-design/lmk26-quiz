@@ -413,3 +413,10 @@ details { margin-top: 12px; } summary { cursor: pointer; font-weight: 800; }
 body.builder #snowfront { display: none; }
 .chipsq { flex: 1 1 260px; min-width: 0; }
 @media (max-width: 640px) { .chipsq { order: 3; flex-basis: 100%; } .bnav .step { padding: 5px 9px; font-size: 13px; } .chipq { width: 34px; height: 34px; font-size: 15px; } }
+/* host: the Next button and top bar are always on screen, however tall the page gets */
+body.host .controls { position: sticky; bottom: 0; z-index: 8; }
+body.host .topbar { position: sticky; top: 0; z-index: 8; }
+.qscreen .drawing { max-height: 46vh; width: auto; max-width: 100%; aspect-ratio: 1; }
+.qimg { max-height: 40vh; }
+.ctl-live { font-weight: 800; background: #fff; color: var(--ink); border: 3px solid var(--ink); border-radius: 999px; padding: 6px 14px; box-shadow: 3px 3px 0 var(--ink); white-space: nowrap; }
+.ctl-live b { font-family: var(--head); font-size: 20px; font-weight: 400; }

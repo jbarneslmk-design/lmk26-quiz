@@ -45,26 +45,33 @@
     try { await B.hostPutQuiz(QUIZ); QSRC = "db"; } catch { }
   }
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  // Question plan = your questions, with drawing-guess questions slotted in after the drawing round
+  // Question plan = your questions, with each drawing round's guess-the-drawing questions
+  // slotted in after that round (spread out, or all together), before the next drawing round.
+  const markers = () => ((QUIZ && QUIZ.questions) || []).filter(q => q.type === "draw");
+  const roundOf = q => markers().indexOf(q);
+  function placeDraws(seg, dq) {
+    if (!dq || !dq.length) return seg;
+    const place = (QUIZ.drawing && QUIZ.drawing.placement) || "spread", n = dq.length, L = seg.length;
+    if (place === "after" || !L) return [...dq, ...seg];
+    const out = []; let used = 0;
+    for (let j = 0; j < L; j++) { const upto = Math.round(((j + 1) * n) / L); out.push(...dq.slice(used, upto)); used = upto; out.push(seg[j]); }
+    return out;
+  }
   function Q() {
-    const base = (QUIZ && QUIZ.questions) || [];
-    const at = base.findIndex(q => q.type === "draw");
-    if (at < 0 || !DQ || !DQ.length) return base;
-    const before = base.slice(0, at + 1), after = base.slice(at + 1), n = DQ.length, L = after.length;
-    const place = (QUIZ.drawing && QUIZ.drawing.placement) || "spread";
-    if (place === "after" || !L) return [...before, ...DQ, ...after];
-    const out = [...before]; let used = 0;
-    for (let j = 0; j < L; j++) {
-      const upto = Math.round(((j + 1) * n) / L);
-      out.push(...DQ.slice(used, upto)); used = upto; out.push(after[j]);
+    const base = (QUIZ && QUIZ.questions) || [], out = [];
+    let r = -1, k = 0, seg = [];
+    const flush = () => { out.push(...(r < 0 ? seg : placeDraws(seg, DQ && DQ[r]))); seg = []; };
+    for (const q of base) {
+      if (q.type === "draw") { flush(); out.push(q); r = k++; } else seg.push(q);
     }
+    flush();
     return out;
   }
   const realQs = () => Q().filter(q => q.type !== "draw");
   const qnum = i => Q().slice(0, i + 1).filter(q => q.type !== "draw").length;
 
   // ---------- live data ----------
-  let REV = null, menuOpen = false, D = {}, DQ = null, ASG = {}, S = { phase: "lobby" }, P = {}, A = {}, R = {}, SC = {}, F = null, connected = true, answersUnsub = null, answersQ = null;
+  let REV = null, menuOpen = false, D = {}, DQ = {}, ASG = {}, S = { phase: "lobby" }, P = {}, A = {}, R = {}, SC = {}, F = null, connected = true, answersUnsub = null, answersQ = null;
 
   function watchAnswers() {
     if (S.q === answersQ) return;
@@ -85,7 +92,7 @@
     const dur = q.duration || QUIZ.defaultDuration || 30;
     await B.set("current", {
       index: i, num: qnum(i), total: realQs().length, type: q.type, text: q.text,
-      drawingOf: q.drawingOf || null, artist: q.artist || null, drawMode: q.drawMode || null,
+      drawingOf: q.drawingOf || null, drawRound: q.drawRound ?? null, artist: q.artist || null, drawMode: q.drawMode || null,
       options: q.type === "choice" ? q.options : null,
       unit: q.unit || null, image: q.image || null, round: q.round || null, double: !!q.double
     });
@@ -93,35 +100,39 @@
   }
   const closeQ = () => B.update("state", { phase: "closed", closedAt: B.now() });
 
-  // ---------- drawing round ----------
+  // ---------- drawing rounds (each has its own prompts, drawings and questions) ----------
   const DCFG = () => QUIZ.drawing || {};
+  const usedPrompts = () => new Set(Object.values(ASG).flatMap(x => Object.values(x || {})));
   async function startDraw(i) {
-    const q = Q()[i], prompts = shuffle(QUIZ.drawPrompts || ["A very important meeting"]);
+    const q = Q()[i], r = roundOf(q);
+    const used = usedPrompts(), all = QUIZ.drawPrompts && QUIZ.drawPrompts.length ? QUIZ.drawPrompts : ["A very important meeting"];
+    const fresh = shuffle(all.filter(x => !used.has(x))), pool = fresh.length >= players().length ? fresh : [...fresh, ...shuffle(all.filter(x => used.has(x)))];
     const asg = {};
-    players().forEach((p, k) => (asg[p.id] = prompts[k % prompts.length]));
-    await B.remove("drawings"); await B.remove("dq"); DQ = null;
-    await B.set("drawAssign", asg);
+    players().forEach((p, k) => (asg[p.id] = pool[k % pool.length]));
+    await B.remove("drawings/" + r); await B.remove("dq/" + r); if (DQ) delete DQ[r];
+    await B.set("drawAssign/" + r, asg);
     const dur = q.duration || 90;
-    await B.set("current", { index: i, type: "draw", text: q.text || "Drawing round", round: q.round || "Drawing round", total: realQs().length });
+    await B.set("current", { index: i, type: "draw", drawRound: r, text: q.text || "Drawing round", round: q.round || "Drawing round", total: realQs().length });
     await B.set("state", { phase: "draw", q: i, endsAt: B.now() + dur * 1000, duration: dur });
   }
   async function assignLate() {
     if (S.phase !== "draw") return;
-    const missing = players().filter(p => !ASG[p.id]);
+    const r = roundOf(Q()[S.q]); if (r < 0) return;
+    const mine = ASG[r] || {}, missing = players().filter(p => !mine[p.id]);
     if (!missing.length) return;
-    const used = new Set(Object.values(ASG));
-    const pool = shuffle((QUIZ.drawPrompts || []).filter(x => !used.has(x)));
+    const used = usedPrompts(), pool = shuffle((QUIZ.drawPrompts || []).filter(x => !used.has(x)));
     const upd = {};
     missing.forEach((p, k) => (upd[p.id] = pool[k] || pick(QUIZ.drawPrompts)));
-    await B.update("drawAssign", upd);
+    await B.update("drawAssign/" + r, upd);
   }
-  async function buildDrawQs() {
-    const d = (await B.get("drawings")) || {}, asg = (await B.get("drawAssign")) || {};
+  async function buildDrawQs(r) {
+    const d = (await B.get("drawings/" + r)) || {}, asg = (await B.get("drawAssign/" + r)) || {};
     const arts = shuffle(Object.entries(d).filter(([, x]) => x && x.img));
     const cfg = DCFG(), mode = cfg.mode || "both";
     const allPrompts = [...new Set([...Object.values(asg), ...(QUIZ.drawPrompts || [])])];
     const names = players().map(p => p.name);
     const max = cfg.maxQuestions ?? 10;
+    const label = markers().length > 1 ? `Drawing round ${r + 1}` : "Drawing round";
     const list = arts.slice(0, max).map(([pid, x], k) => {
       const prompt = x.prompt || asg[pid] || "?", name = nameOf(pid);
       let m = mode === "both" ? (k % 2 ? "who" : "what") : mode;
@@ -129,17 +140,20 @@
       const decoys = m === "what" ? shuffle(allPrompts.filter(p => p !== prompt)).slice(0, 3) : shuffle(names.filter(n => n !== name)).slice(0, 3);
       const options = shuffle([m === "what" ? prompt : name, ...decoys]);
       return {
-        type: "choice", drawMode: m, drawingOf: pid, artist: pid, round: "Drawing round",
+        type: "choice", drawMode: m, drawingOf: pid, drawRound: r, artist: pid, round: label,
         text: m === "what" ? pick(["What on earth is this?", "Name this masterpiece", "What's going on here?", "Explain this to HR"]) : pick(["Who drew this?", "Whose handiwork is this?", "Name the artist"]),
         options, answer: options.indexOf(m === "what" ? prompt : name),
         duration: cfg.guessDuration || 20,
         funFact: `${name} was asked to draw: “${prompt}”`
       };
     });
-    DQ = list;
-    await B.set("dq", list);
+    DQ = Object.assign({}, DQ || {}, { [r]: list });
+    await B.set("dq/" + r, list);
     return list;
   }
+  // every drawing from every round, for the gallery
+  const allDrawings = () => Object.entries(D || {}).flatMap(([r, byPid]) =>
+    Object.entries(byPid || {}).filter(([, d]) => d && d.img).map(([pid, d]) => ({ r: +r, pid, img: d.img, prompt: d.prompt || (ASG[r] || {})[pid] || "" })));
 
   function maybeAutoClose() {
     if (S.phase !== "question" || QUIZ.autoCloseWhenAllAnswered === false) return;
@@ -294,7 +308,7 @@
     if (ph === "draw") return B.update("state", { phase: "drawdone" });
     if (ph === "drawdone") {
       await new Promise(r => setTimeout(r, 1500)); // let last auto-submits land
-      await buildDrawQs();
+      await buildDrawQs(roundOf(Q()[S.q]));
       return S.q + 1 < Q().length ? goQuestion(S.q + 1) : startFinal();
     }
     if (ph === "question") return closeQ();
@@ -304,7 +318,7 @@
     if (ph === "final" && F && F.stage < finalMax()) return B.update("final", { stage: F.stage + 1 });
   }
 
-  const finalMax = () => (Object.keys(D).length ? 5 : 4);
+  const finalMax = () => (allDrawings().length ? 5 : 4);
   async function backup() {
     try { localStorage.setItem("nn_backup_" + C.gameId, JSON.stringify(await B.get(""))); } catch { }
   }
@@ -349,7 +363,15 @@
       final: !F ? "…" : F.stage >= finalMax() ? "That's a wrap" : ["Reveal 3rd place ▶", "Reveal 2nd place ▶", "Reveal the winner ▶", "Special awards ▶", "The gallery ▶"][F.stage]
     }[ph];
     const done = ph === "final" && F && F.stage >= finalMax();
+    let live = "";
+    if (ph === "question" || ph === "closed" || ph === "draw") {
+      const q = Q()[S.q] || {}, ps = players();
+      const n = ph === "draw" ? ps.filter(p => ((D[roundOf(q)] || {})[p.id] || {}).img).length : ps.filter(p => A[p.id] && p.id !== q.artist).length;
+      const of = ph === "draw" ? ps.length : ps.filter(p => p.id !== q.artist).length;
+      live = `<span class="ctl-live"><b id="tleft2">${ph === "closed" ? "TIME" : ""}</b> · ${n}/${of} ${ph === "draw" ? "drawn" : "in"}</span>`;
+    }
     return `<div class="controls">
+      ${live}
       ${ph === "question" || ph === "draw" ? `<button class="btn" data-act="plus">+10s</button>` : ""}
       <button class="btn primary big" data-act="next" ${busy || done || (ph === "lobby" && !Q().length) ? "disabled" : ""}>${label}</button>
       <span class="hint">Space = next</span>
@@ -386,9 +408,9 @@
       </section>`;
     }
     if (ph === "draw" || ph === "drawdone") {
-      const done = ps.filter(p => D[p.id] && D[p.id].img);
+      const dr = D[roundOf(Q()[S.q])] || {}, done = ps.filter(p => dr[p.id] && dr[p.id].img);
       return `<section class="qscreen drawscreen">
-        <div class="qhead"><span class="pill hot">DRAWING ROUND</span></div>
+        <div class="qhead"><span class="pill hot">${esc(markers().length > 1 ? `DRAWING ROUND ${roundOf(Q()[S.q]) + 1}` : "DRAWING ROUND")}</span></div>
         <h2 class="qtext">${ph === "draw" ? "Grab your phone. Draw your secret prompt." : "PENCILS DOWN"}</h2>
         <p class="sub">${ph === "draw" ? "No words, no letters, no numbers. Just raw artistic talent." : `${done.length} masterpieces received. Time to guess what on earth they are.`}</p>
         <div class="qfoot">
@@ -402,8 +424,8 @@
       return `<section class="qscreen">
         ${qHead(q, S.q)}
         <h2 class="qtext">${esc(q.text)}</h2>
-        ${art(q)}
-        ${q.type === "choice" ? optionsHtml(q) : `<div class="numhint card">Type your best guess${q.unit ? ` (${esc(q.unit)})` : ""} — closest wins</div>`}
+        ${q.drawingOf ? `<div class="revwrap">${art(q, true)}<div>${optionsHtml(q)}</div></div>` : `${art(q)}
+        ${q.type === "choice" ? optionsHtml(q) : `<div class="numhint card">Type your best guess${q.unit ? ` (${esc(q.unit)})` : ""} — closest wins</div>`}`}
         <div class="qfoot">
           <div class="timer ${ph === "closed" ? "done" : ""}"><span id="tleft">${ph === "closed" ? "TIME" : ""}</span></div>
           <div class="answered"><strong>${answered.length}/${need}</strong> locked in
@@ -420,21 +442,21 @@
     return "";
   }
 
-  const art = (q, small) => q.drawingOf ? (D[q.drawingOf] && D[q.drawingOf].img ? `<img class="drawing ${small ? "sm" : ""}" src="${D[q.drawingOf].img}" alt="drawing">` : `<p class="muted">Loading drawing…</p>`)
+  const artImg = q => ((D[q.drawRound] || {})[q.drawingOf] || {}).img;
+  const art = (q, small) => q.drawingOf ? (artImg(q) ? `<img class="drawing ${small ? "sm" : ""}" src="${artImg(q)}" alt="drawing">` : `<p class="muted">Loading drawing…</p>`)
     : q.image ? `<img class="qimg" src="${esc(q.image)}" alt="">` : "";
   function artistLine(q) {
     const r = (R[S.q] || {})[q.artist];
     return r ? `<p class="small center">🎨 <b>${esc(nameOf(q.artist))}</b> banks <b>+${fmt(r.pts)}</b> ${q.drawMode === "what" ? `for ${r.right} correct guess${r.right === 1 ? "" : "es"}` : "for everyone they fooled"}</p>` : "";
   }
   function galleryHtml() {
-    const items = Object.entries(D).filter(([, d]) => d && d.img);
-    return `<div class="gallery">${items.map(([pid, d]) => `<figure><img src="${d.img}" alt=""><figcaption><b>${esc(nameOf(pid))}</b>${esc(d.prompt || ASG[pid] || "")}</figcaption></figure>`).join("")}</div>`;
+    return `<div class="gallery">${allDrawings().map(d => `<figure><img src="${d.img}" alt=""><figcaption><b>${esc(nameOf(d.pid))}</b>${esc(d.prompt)}</figcaption></figure>`).join("")}</div>`;
   }
   async function exportGallery() {
-    const items = Object.entries(D).filter(([, d]) => d && d.img);
+    const items = allDrawings();
     const html = `<!doctype html><meta charset="utf-8"><title>${esc(QUIZ.title)} — Gallery</title>
 <style>body{background:#2b0f5c;color:#fff;font-family:system-ui;margin:24px}h1{font-family:Anton,Impact,sans-serif;font-size:56px;color:#ffd23f;text-shadow:4px 4px 0 #160a2b}div{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:22px}figure{margin:0;background:#fff;color:#160a2b;padding:10px;border-radius:12px;border:3px solid #160a2b;box-shadow:6px 6px 0 #160a2b}img{width:100%;border-radius:6px;border:2px solid #160a2b}figcaption b{display:block;color:#ff2f86}</style>
-<h1>${esc(QUIZ.title)} — The Gallery</h1><div>${items.map(([pid, d]) => `<figure><img src="${d.img}"><figcaption><b>${esc(nameOf(pid))}</b>${esc(d.prompt || "")}</figcaption></figure>`).join("")}</div>`;
+<h1>${esc(QUIZ.title)} — The Gallery</h1><div>${items.map(d => `<figure><img src="${d.img}"><figcaption><b>${esc(nameOf(d.pid))}</b>${esc(d.prompt)}</figcaption></figure>`).join("")}</div>`;
     download(`gallery-${C.gameId}.html`, html, "text/html");
   }
   function revealHtml(q) {
@@ -507,7 +529,7 @@
       <p class="small">Quiz: <b>${esc(QUIZ.title)}</b> — ${realQs().length} questions ${QSRC === "db" ? (B.mode === "neon" ? "(stored in Neon, host-only)" : "(stored in this browser)") : "(not saved)"}</p>
       <div class="row"><a class="btn sm" href="builder.html" target="_blank" rel="noopener">✏️ Question builder</a>${fileBtn()}<button class="btn sm ghost" data-act="reloadq">↻ Reload questions</button></div>
       <div class="row"><button class="btn sm" data-act="export">Download results (JSON + CSV)</button></div>
-      <div class="row"><button class="btn sm" data-act="gallery" ${Object.keys(D).length ? "" : "disabled"}>Download drawings gallery</button></div>
+      <div class="row"><button class="btn sm" data-act="gallery" ${allDrawings().length ? "" : "disabled"}>Download drawings gallery</button></div>
       <div class="row"><button class="btn sm" data-act="jump">Jump to question…</button></div>
       <div class="row"><button class="btn sm danger" data-act="reset">Reset game (wipes scores)</button></div>
       <div class="row"><button class="btn sm ghost" data-act="menu">Close</button></div>
@@ -526,12 +548,15 @@
   }
 
   function tick() {
-    const el = $("#tleft"), t = $(".timer");
-    if (!el || (S.phase !== "question" && S.phase !== "draw")) return;
+    const el = $("#tleft"), t = $(".timer"), el2 = $("#tleft2");
+    if ((!el && !el2) || (S.phase !== "question" && S.phase !== "draw")) return;
     const left = Math.max(0, (S.endsAt - B.now()) / 1000);
+    if (el2) el2.textContent = Math.ceil(left) + "s";
+    if (el && t) {
     el.textContent = Math.ceil(left);
     t.style.setProperty("--p", left / S.duration);
     t.classList.toggle("low", left <= 5);
+    }
     if (left <= 0 && !tick.closing) {
       tick.closing = true;
       (S.phase === "draw" ? B.update("state", { phase: "drawdone" }) : closeQ()).finally(() => (tick.closing = false));
@@ -547,7 +572,7 @@
     if (act === "menubg") { if (e.target === b) { menuOpen = false; render(); } return; }
     if (act === "next") await next();
     if (act === "plus") await B.update("state", { endsAt: S.endsAt + 10000, duration: S.duration + 10 });
-    if (act === "export") { await exportAll(); if (Object.keys(D).length) await exportGallery(); }
+    if (act === "export") { await exportAll(); if (allDrawings().length) await exportGallery(); }
     if (act === "gallery") await exportGallery();
     if (act === "menu") { menuOpen = !menuOpen; render(); }
     if (act === "qr") { qrOpen = true; render(); }
@@ -564,7 +589,7 @@
       if (prompt('This wipes all players and scores for this game. Type RESET to confirm.') === "RESET") {
         await backup();
         await B.reset();
-        DQ = null; await B.set("state", { phase: "lobby" }); menuOpen = false; render();
+        DQ = {}; await B.set("state", { phase: "lobby" }); menuOpen = false; render();
       }
     }
   });
@@ -580,7 +605,7 @@
   B.on("players", v => { P = v || {}; render(); assignLate(); });
   B.on("drawings", v => { D = v || {}; render(); });
   B.on("drawAssign", v => { ASG = v || {}; });
-  B.on("dq", v => { DQ = v; render(); });
+  B.on("dq", v => { DQ = v || {}; render(); });
   B.on("results", v => { R = v || {}; });
   B.on("scores", v => { SC = v || {}; render(); });
   B.on("final", v => { F = v; render(); });

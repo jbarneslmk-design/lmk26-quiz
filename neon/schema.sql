@@ -128,7 +128,7 @@ end $$;
 
 -- Apply writes. ops = [{"p":"players/abc","v":{...}}, {"p":"answers/3"} (remove), ...]
 -- Players may only: join (players/<own id>), answer once while a question is open
--- (answers/<q>/<own id>), and send their drawing during the drawing round (drawings/<own id>).
+-- (answers/<q>/<own id>), and send their drawing during a drawing round (drawings/<round>/<own id>).
 -- Everything else needs the host PIN.
 create or replace function quiz.write(p_token text, p_pid text, p_ops jsonb) returns jsonb
 language plpgsql security definer set search_path = quiz, public, pg_temp as $$
@@ -154,7 +154,7 @@ begin
         if quiz.now_ms() > (st ->> 'endsAt')::numeric + 2000 then raise exception 'closed'; end if;
         if g.tree #> p is not null then raise exception 'already_answered'; end if;
         if length(v::text) > 200 then raise exception 'too_big'; end if;
-      elsif array_length(p, 1) = 2 and p[1] = 'drawings' and p[2] = p_pid and v is not null then
+      elsif array_length(p, 1) = 3 and p[1] = 'drawings' and p[2] ~ '^[0-9]{1,2}$' and p[3] = p_pid and v is not null then
         if coalesce(st ->> 'phase', '') not in ('draw', 'drawdone') then raise exception 'closed'; end if;
         if jsonb_typeof(v -> 'img') <> 'string' or length(v ->> 'img') > 400000 then raise exception 'too_big'; end if;
       else

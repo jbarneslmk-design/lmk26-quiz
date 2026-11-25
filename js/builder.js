@@ -40,7 +40,7 @@
     });
     return q;
   }
-  const save = () => { try { localStorage.setItem(DKEY, JSON.stringify({ quiz, at: Date.now() })); } catch { } };
+  const save = () => { try { localStorage.setItem(DKEY, JSON.stringify({ quiz, at: Date.now(), view: view === "start" ? "settings" : view, qi })); } catch { } };
   const Q = () => quiz.questions;
 
   // ---------- checks ----------
@@ -61,8 +61,7 @@
     const p = [];
     if (!Q().filter(q => q.type !== "draw").length) p.push("Add at least one question");
     const draws = Q().filter(q => q.type === "draw").length;
-    if (draws > 1) p.push("Only one drawing round is allowed — delete the extra one");
-    if (draws && quiz.drawPrompts.filter(s => s.trim()).length < 1) p.push("The drawing round needs some prompts");
+    if (draws && quiz.drawPrompts.filter(s => s.trim()).length < 1) p.push("The drawing rounds need some prompts");
     return p;
   }
   const status = q => (q.type === "draw" ? "draw" : problems(q).length ? "bad" : q.todo ? "todo" : "ok");
@@ -185,13 +184,13 @@
         <label>Unit (optional)<input class="inp" data-f="q.unit" value="${esc(q.unit || "")}" placeholder="e.g. orders, £, miles"></label></div>
         <p class="hint">Closest guess wins. Within 2% counts as spot on.</p>`;
     } else {
-      body = `<div class="drawinfo">✏️ <b>The drawing round happens here.</b> Everyone draws a secret prompt on their phone, and the drawings come back as "What is it?" / "Who drew it?" questions later in the quiz. Set the prompts under <a href="#" data-go="drawing">Drawing prompts</a>.</div>
+      body = `<div class="drawinfo">✏️ <b>A drawing round happens here.</b> Everyone draws a secret prompt on their phone, and the drawings come back as "What is it?" / "Who drew it?" questions later in the quiz. Set the prompts under <a href="#" data-go="drawing">Drawing prompts</a>.</div>
         <label>Seconds to draw<input class="inp" data-f="q.duration" data-t="int" inputmode="numeric" value="${q.duration || 90}"></label>`;
     }
     const probs = problems(q);
     return `<div class="bsplit">
       <section class="bcard card">
-        <div class="bhead"><h2 class="title sm">${q.type === "draw" ? "DRAWING ROUND" : `QUESTION ${qnum(qi)}`} <small>${qi + 1} of ${n}</small></h2>
+        <div class="bhead"><h2 class="title sm">${q.type === "draw" ? `DRAWING ROUND${Q().filter(x => x.type === "draw").length > 1 ? " " + (Q().slice(0, qi + 1).filter(x => x.type === "draw").length) : ""}` : `QUESTION ${qnum(qi)}`} <small>${qi + 1} of ${n}</small></h2>
           <div class="tools">
             <button class="btn sm" data-act="up" ${qi === 0 ? "disabled" : ""} title="Move earlier">↑</button>
             <button class="btn sm" data-act="down" ${qi === n - 1 ? "disabled" : ""} title="Move later">↓</button>
@@ -234,12 +233,13 @@
   }
 
   function drawingView() {
-    const d = quiz.drawing, hasDraw = Q().some(q => q.type === "draw"), prompts = quiz.drawPrompts;
+    const d = quiz.drawing, drawAt = Q().map((q, i) => (q.type === "draw" ? i : -1)).filter(i => i >= 0), hasDraw = drawAt.length > 0, prompts = quiz.drawPrompts;
     return `<section class="bcard card">
       <h2 class="title sm">DRAWING PROMPTS</h2>
-      ${hasDraw ? `<p>Your drawing round is question ${Q().findIndex(q => q.type === "draw") + 1} in the running order.</p>`
+      ${hasDraw ? `<p>${drawAt.length === 1 ? "Your drawing round is" : `You have <b>${drawAt.length} drawing rounds</b>, at`} ${drawAt.map((i, k) => `<a href="#" data-go="q" data-i="${i}">position ${i + 1}</a>`).join(", ")} in the running order. Each round's drawings come back as questions before the next round starts.</p>
+        <button class="btn sm" data-act="adddraw">+ Add another drawing round</button>`
         : `<p class="probs">There's no drawing round in the quiz. <button class="btn sm" data-act="adddraw">Add a drawing round</button></p>`}
-      <label>Secret prompts — one per line <span class="hint">${prompts.filter(s => s.trim()).length} prompts · aim for one per person (15–20)</span>
+      <label>Secret prompts — one per line <span class="hint">${prompts.filter(s => s.trim()).length} prompts · aim for ${Math.max(1, drawAt.length) * 20} (about 20 per drawing round, so nobody gets a repeat)</span>
         <textarea class="inp prompts" data-f="s.drawPrompts" data-t="lines" rows="12">${esc(prompts.join("\n"))}</textarea></label>
       <div class="grid2">
         <label>Guessing style<select class="inp" data-f="d.mode">
@@ -264,7 +264,7 @@
     return `<section class="bcard card">
       <h2 class="title sm">FINISH</h2>
       <ul class="summary">
-        <li><b>${real.length}</b> questions${Q().some(q => q.type === "draw") ? " + a drawing round" : ""}</li>
+        <li><b>${real.length}</b> questions${(() => { const n = Q().filter(q => q.type === "draw").length; return n ? ` + ${n === 1 ? "a drawing round" : n + " drawing rounds"}` : ""; })()}</li>
         <li><b>${prizes}</b> of 3 prizes filled in</li>
         <li><b>${quiz.drawPrompts.filter(s => s.trim()).length}</b> drawing prompts</li>
         ${todo ? `<li class="warn-t">⚠ ${todo} still marked as placeholders</li>` : ""}
@@ -285,7 +285,7 @@
     if (view === "start" || !quiz) { app.innerHTML = startView(); bind(); return; }
     const body = view === "settings" ? settingsView() : view === "q" ? questionView() : view === "drawing" ? drawingView() : finishView();
     app.innerHTML = `<header class="topbar"><div class="brand">QUESTION BUILDER</div>
-      <span class="pill ${loggedIn ? "live" : "warn"}">${loggedIn ? "HOST" : "NOT LOGGED IN"}</span><span class="grow"></span>
+      ${loggedIn ? `<span class="pill live">HOST</span>` : `<button class="pill warn" data-act="home" title="Log in from the menu">NOT LOGGED IN — LOG IN</button>`}<span class="grow"></span>
       <span class="savedmark" id="savedmark">Saved on this device</span>
       <button class="btn sm ghost" data-act="home">Menu</button></header>
       ${nav()}<main class="bmain">${body}</main>`;
@@ -335,7 +335,18 @@
     };
   }
 
-  function go(v, i) { view = v; if (i != null) qi = Math.max(0, Math.min(Q().length - 1, i)); note = ""; render(); window.scrollTo(0, 0); }
+  const hashOf = () => (view === "q" ? "#q" + (qi + 1) : "#" + view);
+  function go(v, i, fromHistory) {
+    view = v; if (i != null && quiz) qi = Math.max(0, Math.min(Q().length - 1, i)); note = "";
+    if (quiz && view !== "start") save();
+    if (!fromHistory) history.pushState({ view, qi }, "", hashOf());
+    render(); window.scrollTo(0, 0);
+  }
+  window.addEventListener("popstate", e => {
+    const st = e.state; if (!st) return;
+    if (st.view !== "start" && !quiz) return;
+    go(st.view, st.qi, true);
+  });
   const blankQ = like => ({ round: (like && like.round) || "", type: "choice", text: "", options: ["", "", "", ""], answer: null });
 
   app.addEventListener("click", async e => {
@@ -355,12 +366,11 @@
       if (src === "live") quiz = normalise(live);
       else if (src === "draft") quiz = normalise(saved.quiz);
       else { if (saved && !confirm("Start from scratch? Your saved draft will be replaced.")) return; quiz = normalise(TEMPLATE); }
-      save(); return go("settings");
+      return go("settings");
     }
-    if (act === "home") { saved = { quiz, at: Date.now() }; view = "start"; render(); return; }
+    if (act === "home") { saved = { quiz, at: Date.now() }; return go("start"); }
     if (act === "type") {
       const t = b.dataset.t; if (t === q.type) return;
-      if (t === "draw" && Q().some((x, i) => x.type === "draw" && i !== qi)) { alert("There's already a drawing round. Only one is allowed."); return; }
       if (t === "choice") { q.options = q.options && q.options.length >= 2 ? q.options : ["", "", "", ""]; q.answer = null; }
       if (t === "number") { delete q.options; q.answer = typeof q.answer === "number" && q.type === "number" ? q.answer : null; }
       if (t === "draw") { delete q.options; delete q.answer; q.duration = q.duration || 90; q.round = q.round || "Drawing round"; }
@@ -374,7 +384,7 @@
       save(); render(); return;
     }
     if (act === "addq") { Q().splice(view === "q" ? qi + 1 : Q().length, 0, blankQ(q)); save(); return go("q", view === "q" ? qi + 1 : Q().length - 1); }
-    if (act === "dup") { const c = clone(q); if (c.type === "draw") { alert("Only one drawing round is allowed."); return; } Q().splice(qi + 1, 0, c); save(); return go("q", qi + 1); }
+    if (act === "dup") { Q().splice(qi + 1, 0, clone(q)); save(); return go("q", qi + 1); }
     if (act === "del") {
       if (!confirm(q.type === "draw" ? "Remove the drawing round?" : `Delete question ${qnum(qi)}?`)) return;
       Q().splice(qi, 1); if (!Q().length) Q().push(blankQ()); save(); return go("q", Math.min(qi, Q().length - 1));
@@ -384,7 +394,10 @@
     }
     if (act === "prev") return qi === 0 ? go("settings") : go("q", qi - 1);
     if (act === "next") return qi === Q().length - 1 ? go("drawing") : go("q", qi + 1);
-    if (act === "adddraw") { Q().splice(Math.ceil(Q().length / 3), 0, { round: "Drawing round", type: "draw", text: "Drawing round", duration: 90 }); save(); render(); return; }
+    if (act === "adddraw") {
+      const at = Q().length ? Math.max(1, Math.round(Q().length * (Q().some(x => x.type === "draw") ? 2 / 3 : 1 / 3))) : 0;
+      Q().splice(at, 0, { round: "Drawing round", type: "draw", text: "Drawing round", duration: 90 }); save(); return go("q", at);
+    }
     if (act === "export") { download("lmk26-questions.js", jsFile(), "text/javascript"); note = "Downloaded lmk26-questions.js"; render(); return; }
     if (act === "upload") {
       try {
@@ -399,5 +412,13 @@
     }
   });
 
+  // reopening the builder (or refreshing) carries on exactly where you were
+  if (saved && saved.quiz) {
+    quiz = normalise(saved.quiz); view = saved.view || "settings"; qi = Math.min(saved.qi || 0, quiz.questions.length - 1);
+    if (!["settings", "q", "drawing", "finish"].includes(view)) view = "settings";
+    note = "";
+  }
+  history.replaceState({ view, qi }, "", view === "start" ? location.pathname : hashOf());
   render();
+  if (saved && saved.quiz) { const m = $("#savedmark"); if (m) { m.textContent = "Carried on from your draft"; setTimeout(() => (m.textContent = "Saved on this device"), 3000); } }
 })();

@@ -24,9 +24,11 @@
 
   let me, S = {}, CUR = null, REV = null, MYANS = null, MYRES = null, MYSC = null, F = null, count = 0, ready = 0;
   let unA = null, unR = null, watchedQ = null, lastKey = "";
-  let MYPROMPT = null, MYDRAW = null, CURIMG = null, unImg = null, imgOf = null, submitting = false;
-  const SKEY = "nn_strokes_" + C.gameId + AS;
-  let strokes = []; try { strokes = JSON.parse(localStorage.getItem(SKEY)) || []; } catch { }
+  let MYPROMPT = null, MYDRAW = null, CURIMG = null, unImg = null, imgOf = null, submitting = false, unPrompt = null, unMine = null;
+  // strokes are kept per drawing round, so a refresh never loses a half-finished drawing
+  let drawR = null, SKEY = "nn_strokes_" + C.gameId + AS + "_0";
+  let strokes = [];
+  const loadStrokes = r => { SKEY = "nn_strokes_" + C.gameId + AS + "_" + r; try { strokes = JSON.parse(localStorage.getItem(SKEY)) || []; } catch { strokes = []; } };
   let pen = { c: "#14112b", s: 8 };
   const COLOURS = ["#14112b", "#ff2e88", "#ff8a00", "#ffd400", "#21d07a", "#18c6ff", "#7b5cff", "#8b5a2b", "#ffffff"];
 
@@ -252,13 +254,13 @@
     }));
   }
   async function submitDrawing() {
-    if (submitting || (MYDRAW && MYDRAW.img) || !strokes.length || !me) return;
+    if (submitting || drawR == null || (MYDRAW && MYDRAW.img) || !strokes.length || !me) return;
     submitting = true;
     try {
       const c = document.createElement("canvas"); c.width = c.height = 480;
       paint(c.getContext("2d"), strokes);
       const img = c.toDataURL("image/jpeg", 0.7);
-      await B.set("drawings/" + pid, { img, prompt: MYPROMPT, at: B.TS });
+      await B.set(`drawings/${drawR}/${pid}`, { img, prompt: MYPROMPT, at: B.TS });
       strokes = []; saveStrokes();
     } catch (e) { console.warn(e); } finally { submitting = false; }
   }
@@ -289,11 +291,18 @@
   B.on("current", v => {
     CUR = v;
     const want = v && v.drawingOf;
-    if (want !== imgOf) { imgOf = want; unImg && unImg(); CURIMG = null; unImg = want ? B.on(`drawings/${want}/img`, im => { CURIMG = im; render(); }) : null; }
+    const wantKey = want ? `${v.drawRound ?? 0}/${want}` : null;
+    if (wantKey !== imgOf) { imgOf = wantKey; unImg && unImg(); CURIMG = null; unImg = wantKey ? B.on(`drawings/${wantKey}/img`, im => { CURIMG = im; render(); }) : null; }
+    // drawing round: follow this round's prompt and my drawing for it
+    if (v && v.type === "draw" && v.drawRound !== drawR) {
+      drawR = v.drawRound ?? 0; loadStrokes(drawR);
+      unPrompt && unPrompt(); unMine && unMine(); MYPROMPT = MYDRAW = null;
+      unPrompt = B.on(`drawAssign/${drawR}/${pid}`, x => { MYPROMPT = x; render(); });
+      unMine = B.on(`drawings/${drawR}/${pid}`, x => { MYDRAW = x; render(); });
+    }
     render();
   });
-  B.on("drawAssign/" + pid, v => { MYPROMPT = v; render(); });
-  B.on("drawings/" + pid, v => { MYDRAW = v; render(); });
+
   B.on("reveal", v => { REV = v; render(); });
   B.on("scores/" + pid, v => { MYSC = v; render(); });
   B.on("final", v => { F = v; render(); });
