@@ -76,7 +76,7 @@
         <p class="sub">The LMK Christmas Quiz</p>
         <div class="card">
           ${authed ? "" : `<label for="pw">Quiz password</label>
-          <input id="pw" class="big-input" type="password" autocomplete="off" autocapitalize="none" placeholder="On your table card">`}
+          <input id="pw" class="big-input" type="password" autocomplete="off" autocapitalize="none" placeholder="Ask the quizmaster">`}
           <label for="nm">Your name (so we know who to blame)</label>
           <input id="nm" class="big-input" maxlength="18" autocomplete="off" value="${esc(saved)}" placeholder="e.g. Big Steve">
           ${gateErr ? `<p class="gate-err">${esc(gateErr)}</p>` : ""}
@@ -192,14 +192,14 @@
         } catch (e) { gateErr = errText(e.message); localStorage.setItem(NKEY, name); lastKey = ""; render(); }
         finally { const b = $("#joinbtn"); b && (b.disabled = false); }
       };
-      jb.onclick = go; $("#nm").onkeydown = e => e.key === "Enter" && go();
-      const pwEl = $("#pw"); pwEl && (pwEl.onkeydown = e => e.key === "Enter" && $("#nm").focus());
+      jb.onclick = go; $("#nm").onkeydown = e => { if (e.key === "Enter") go(); };
+      const pwEl = $("#pw"); if (pwEl) pwEl.onkeydown = e => { if (e.key === "Enter") $("#nm").focus(); };
     }
     app.querySelectorAll(".opt[data-v]").forEach(b => (b.onclick = () => answer(+b.dataset.v)));
     const ng = $("#numgo");
     if (ng) {
       const go = () => { const v = parseNum($("#num").value); if (v == null) { $("#num").classList.add("shake"); setTimeout(() => $("#num").classList.remove("shake"), 400); return; } answer(v); };
-      ng.onclick = go; $("#num").onkeydown = e => e.key === "Enter" && go();
+      ng.onclick = go; $("#num").onkeydown = e => { if (e.key === "Enter") go(); };
     }
     mountCanvas();
     tick();

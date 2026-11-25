@@ -24,7 +24,7 @@
         catch (e) { $("#err").textContent = errText(e.message); $("#go").disabled = false; }
       };
       $("#go").onclick = go;
-      $("#pin").onkeydown = e => e.key === "Enter" && go();
+      $("#pin").onkeydown = e => { if (e.key === "Enter") go(); };
       $("#pin").focus();
     });
   }

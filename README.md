@@ -2,7 +2,7 @@
 
 A live phone quiz for the Christmas meal. You read the questions out, everyone answers on their phone, and the big screen shows who got it right. There's also a drawing round, a live leaderboard, a podium with prizes and a gallery of everyone's drawings at the end.
 
-- **Players** go to `https://YOUR-NAME.github.io/lmk26-quiz/`, type the **quiz password** (put it on the table cards) and their name, and they're in. There's no app or sign-up.
+- **Players** go to `https://YOUR-NAME.github.io/lmk26-quiz/`, type the **quiz password** (you announce it on the night) and their name, and they're in. There's no app or sign-up.
 - **You** (the host) open `https://YOUR-NAME.github.io/lmk26-quiz/host.html` on a laptop, ideally plugged into a TV, and enter the **host PIN**.
 - **Nothing is lost.** Every answer and score is saved in Neon the moment it happens. If your laptop or someone's phone refreshes, crashes or loses signal, it carries on exactly where it was.
 - **Locked down.** The password and PIN are checked inside Neon, not in the web page, and the questions and answers are stored in Neon where only the host PIN can read them. They are never in this public repository.
